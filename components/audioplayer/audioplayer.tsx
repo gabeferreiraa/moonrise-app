@@ -1,336 +1,182 @@
 import {
-  AVPlaybackStatus,
   Audio,
+  AVPlaybackStatusSuccess,
   InterruptionModeAndroid,
   InterruptionModeIOS,
 } from "expo-av";
-import React, { useEffect, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+type Options = {
+  crossfadeMs?: number; // Simplified naming to match web version
+  loop?: boolean;
+  autoStart?: boolean;
+};
 
 type Version = "guided" | "birth" | "life" | "death" | "full";
 
-export default function AudioPlayerMobile({
-  version,
-  sources, // map Version -> URL
-  onAnyInteraction,
-  crossfadeMs = 1200,
-}: {
-  version: Version;
-  sources: Record<Version, string>;
-  onAnyInteraction?: () => void;
-  crossfadeMs?: number;
-}) {
-  // two-sound engine for crossfade
-  const soundARef = useRef<Audio.Sound | null>(null);
-  const soundBRef = useRef<Audio.Sound | null>(null);
-  const liveWhichRef = useRef<"A" | "B">("A");
-  const genRef = useRef(0); // race guard for rapid switches
+export default function useCrossfadeAudio(
+  urls: Record<Version, string>,
+  initial: Version,
+  opts: Options = {}
+) {
+  const {
+    crossfadeMs = 2000, // Match web default
+    loop = true,
+    autoStart = true,
+  } = opts;
 
-  // UI state
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [loop, setLoop] = useState(true);
-  const [position, setPosition] = useState(0); // ms
-  const [duration, setDuration] = useState(0); // ms
+  const [version, setVersion] = useState<Version>(initial);
 
-  // one-time audio mode (if you haven't set it elsewhere)
+  // Two audio instances for crossfade (like web's dual <audio> tags)
+  const audio0Ref = useRef<Audio.Sound | null>(null);
+  const audio1Ref = useRef<Audio.Sound | null>(null);
+  const whichLive = useRef<0 | 1>(0); // Track which audio is currently "live"
+
+  const [ready, setReady] = useState(false);
+  const isFadingRef = useRef(false);
+
+  // Get current live/alt audio references
+  const getLiveAudio = () =>
+    whichLive.current === 0 ? audio0Ref.current : audio1Ref.current;
+  const getAltAudio = () =>
+    whichLive.current === 0 ? audio1Ref.current : audio0Ref.current;
+
+  // Initialize audio system and preload initial track
   useEffect(() => {
-    (async () => {
+    let cancelled = false;
+
+    const initAudio = async () => {
       await Audio.setAudioModeAsync({
         playsInSilentModeIOS: true,
         staysActiveInBackground: true,
-        shouldDuckAndroid: true,
         interruptionModeIOS: InterruptionModeIOS.DoNotMix,
-        interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
+        interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
+        shouldDuckAndroid: true,
       });
-    })();
-  }, []);
 
-  // helper: status updates only from the *live* sound
-  const makeStatusHandler =
-    (which: "A" | "B") => (status: AVPlaybackStatus) => {
-      if (!status.isLoaded) return;
-      if (liveWhichRef.current !== which) return; // ignore non-live
-      setIsPlaying(status.isPlaying);
-      setPosition(status.positionMillis ?? 0);
-      setDuration(status.durationMillis ?? 0);
-    };
+      // Create two audio instances
+      audio0Ref.current = new Audio.Sound();
+      audio1Ref.current = new Audio.Sound();
 
-  const fmt = (ms: number) => {
-    const s = Math.floor((ms || 0) / 1000);
-    const m = Math.floor(s / 60);
-    const sec = s % 60;
-    return `${m}:${String(sec).padStart(2, "0")}`;
-  };
-
-  // crossfade to a new URI, preserving timeline
-  const crossfadeTo = async (uri: string) => {
-    const myGen = ++genRef.current;
-
-    const liveRef = liveWhichRef.current === "A" ? soundARef : soundBRef;
-    const altRef = liveWhichRef.current === "A" ? soundBRef : soundARef;
-
-    // read current timestamp & play state from live
-    let startAt = 0;
-    let wasPlaying = true;
-    if (liveRef.current) {
-      try {
-        const st = await liveRef.current.getStatusAsync();
-        if (st.isLoaded) {
-          startAt = st.positionMillis ?? 0;
-          wasPlaying = st.isPlaying ?? true;
-        }
-      } catch {}
-    }
-
-    // reset alt
-    if (altRef.current) {
-      try {
-        await altRef.current.stopAsync();
-      } catch {}
-      try {
-        await altRef.current.unloadAsync();
-      } catch {}
-      altRef.current = null;
-    }
-
-    // create incoming at 0 volume
-    let incoming: Audio.Sound | null = null;
-    try {
-      const { sound } = await Audio.Sound.createAsync(
-        { uri },
-        { shouldPlay: false, isLooping: loop, volume: 0 },
-        makeStatusHandler(liveWhichRef.current === "A" ? "B" : "A")
+      // Load initial track in audio0
+      await audio0Ref.current.loadAsync(
+        { uri: urls[initial] },
+        { shouldPlay: false, isLooping: loop, volume: 1 },
+        true // downloadFirst
       );
-      incoming = sound;
-    } catch (e) {
-      console.warn("[mobile audio] createAsync failed:", e);
-      return;
-    }
 
-    if (myGen !== genRef.current) {
-      try {
-        await incoming.unloadAsync();
-      } catch {}
-      return;
-    }
+      if (cancelled) return;
 
-    // seek to same timestamp, then start if was playing
-    try {
-      await incoming.setPositionAsync(startAt);
-    } catch {}
-    if (wasPlaying) {
-      try {
-        await incoming.playAsync();
-      } catch {}
-    }
-
-    // ensure outgoing is at volume 1 before fade
-    const fadeOut = liveRef.current;
-    if (fadeOut) {
-      try {
-        const st = await fadeOut.getStatusAsync();
-        if (st.isLoaded) {
-          const vol = (st as any).volume ?? 1;
-          if (vol < 0.99) await fadeOut.setVolumeAsync(1);
-        }
-      } catch {}
-    }
-
-    // fade
-    const start = Date.now();
-    const dur = Math.max(100, crossfadeMs);
-    const ease = (t: number) => t * t * (3 - 2 * t);
-    let timer: NodeJS.Timer | null = null;
-
-    const tick = async () => {
-      if (myGen !== genRef.current) {
-        if (timer) clearInterval(timer);
-        return;
+      // Auto-start if enabled
+      if (autoStart) {
+        await audio0Ref.current.playAsync();
       }
-      const k = Math.min(1, (Date.now() - start) / dur);
-      const f = ease(k);
-      try {
-        await incoming!.setVolumeAsync(f);
-      } catch {}
-      if (fadeOut) {
-        try {
-          await fadeOut.setVolumeAsync(1 - f);
-        } catch {}
-      }
-      if (k >= 1) {
-        if (timer) clearInterval(timer);
 
-        // swap: incoming becomes live
-        if (liveWhichRef.current === "A") {
-          soundBRef.current = incoming!;
-          liveWhichRef.current = "B";
-        } else {
-          soundARef.current = incoming!;
-          liveWhichRef.current = "A";
-        }
-
-        // stop/unload old
-        if (fadeOut) {
-          try {
-            await fadeOut.stopAsync();
-          } catch {}
-          try {
-            await fadeOut.unloadAsync();
-          } catch {}
-        }
-      }
+      setReady(true);
     };
 
-    timer = setInterval(tick, 16);
-    tick();
-  };
+    initAudio();
 
-  // switch on version change
-  useEffect(() => {
-    const uri = sources[version] ?? sources.full;
-    if (!uri) return;
-    crossfadeTo(uri);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [version, sources, loop]);
-
-  // keep loop setting in sync with the live sound
-  useEffect(() => {
-    const liveRef = liveWhichRef.current === "A" ? soundARef : soundBRef;
-    if (liveRef.current) {
-      liveRef.current.setIsLoopingAsync(loop).catch(() => {});
-    }
-  }, [loop]);
-
-  // cleanup both sounds on unmount
-  useEffect(() => {
     return () => {
-      [soundARef.current, soundBRef.current].forEach(async (s) => {
-        if (!s) return;
-        try {
-          await s.stopAsync();
-        } catch {}
-        try {
-          await s.unloadAsync();
-        } catch {}
-      });
+      cancelled = true;
+      audio0Ref.current?.unloadAsync();
+      audio1Ref.current?.unloadAsync();
     };
-  }, []);
+  }, [urls, initial, loop, autoStart]);
 
-  // controls
-  const togglePlay = async () => {
-    onAnyInteraction?.();
-    const s =
-      liveWhichRef.current === "A" ? soundARef.current : soundBRef.current;
-    if (!s) return;
-    const status = await s.getStatusAsync();
-    if (status.isLoaded) {
-      if (status.isPlaying) await s.pauseAsync();
-      else await s.playAsync();
-    }
-  };
+  // Crossfade function - mimics web implementation
+  const crossfadeTo = useCallback(
+    async (nextVersion: Version) => {
+      if (!ready || isFadingRef.current || nextVersion === version) return;
 
-  const rewind10 = async () => {
-    onAnyInteraction?.();
-    const sLive =
-      liveWhichRef.current === "A" ? soundARef.current : soundBRef.current;
-    const sAlt =
-      liveWhichRef.current === "A" ? soundBRef.current : soundARef.current;
-    if (!sLive) return;
-    const st = await sLive.getStatusAsync();
-    if (!st.isLoaded) return;
-    const next = Math.max(0, (st.positionMillis ?? 0) - 10000);
-    await sLive.setPositionAsync(next);
-    // keep alt roughly aligned for the next switch
-    try {
-      await sAlt?.setPositionAsync(next);
-    } catch {}
-  };
+      const currentAudio = getLiveAudio();
+      const nextAudio = getAltAudio();
 
-  const toggleLoop = async () => {
-    onAnyInteraction?.();
-    setLoop((v) => !v);
-    const sLive =
-      liveWhichRef.current === "A" ? soundARef.current : soundBRef.current;
-    try {
-      await sLive?.setIsLoopingAsync(!loop);
-    } catch {}
-  };
+      if (!currentAudio || !nextAudio) return;
 
-  return (
-    <View style={styles.bar}>
-      {/* Rewind */}
-      <Pressable
-        onPress={rewind10}
-        style={styles.btn}
-        android_ripple={{ color: "#444" }}
-      >
-        <Text style={styles.btnText}>↺10</Text>
-      </Pressable>
+      isFadingRef.current = true;
 
-      {/* Play / Pause */}
-      <Pressable
-        onPress={togglePlay}
-        style={styles.btn}
-        android_ripple={{ color: "#444" }}
-      >
-        <Text style={styles.btnText}>{isPlaying ? "❚❚" : "▶︎"}</Text>
-      </Pressable>
+      try {
+        // Get current playback position (like web's currentTime)
+        const currentStatus =
+          (await currentAudio.getStatusAsync()) as AVPlaybackStatusSuccess;
+        const startPosition = currentStatus.isLoaded
+          ? currentStatus.positionMillis || 0
+          : 0;
 
-      {/* Time */}
-      <Text style={styles.time}>
-        {fmt(position)} / {duration ? fmt(duration) : "0:00"}
-      </Text>
+        // Load new track in alternate audio instance
+        await nextAudio.unloadAsync(); // Clear previous
+        await nextAudio.loadAsync(
+          { uri: urls[nextVersion] },
+          { shouldPlay: false, isLooping: loop, volume: 0 },
+          true
+        );
 
-      {/* Loop */}
-      <Pressable
-        onPress={toggleLoop}
-        style={[styles.btn, loop && styles.btnActive]}
-        android_ripple={{ color: "#444" }}
-      >
-        <Text style={styles.btnText}>⟲</Text>
-      </Pressable>
-    </View>
+        // Set to same position as current track (perfect sync like web)
+        await nextAudio.setPositionAsync(startPosition);
+        await nextAudio.playAsync();
+
+        // Crossfade using requestAnimationFrame approach (like web)
+        const startTime = performance.now();
+        const fadeStep = () => {
+          const elapsed = performance.now() - startTime;
+          const progress = Math.min(1, elapsed / crossfadeMs);
+
+          // Quick cut-off curve - old audio fades out much faster
+          const incomingVolume = progress; // Linear fade in
+          const outgoingVolume = Math.pow(1 - progress, 3); // Cubic fade out (much faster)
+
+          // Apply volumes
+          Promise.all([
+            nextAudio.setVolumeAsync(incomingVolume),
+            currentAudio.setVolumeAsync(outgoingVolume),
+          ]).catch(() => {}); // Silent error handling
+
+          if (progress < 1) {
+            requestAnimationFrame(fadeStep);
+          } else {
+            // Crossfade complete
+            currentAudio
+              .stopAsync()
+              .then(() => {
+                currentAudio.setVolumeAsync(0);
+              })
+              .catch(() => {});
+
+            nextAudio.setVolumeAsync(1);
+
+            // Switch which audio is "live" (like web's whichLive toggle)
+            whichLive.current = whichLive.current === 0 ? 1 : 0;
+            isFadingRef.current = false;
+          }
+        };
+
+        requestAnimationFrame(fadeStep);
+      } catch (error) {
+        console.warn("Crossfade error:", error);
+        isFadingRef.current = false;
+      }
+    },
+    [ready, version, crossfadeMs, urls, loop]
+  );
+
+  // Version setter
+  const setVersionSmooth = useCallback(
+    (newVersion: Version) => {
+      setVersion(newVersion);
+      if (ready) {
+        crossfadeTo(newVersion);
+      }
+    },
+    [ready, crossfadeTo]
+  );
+
+  return useMemo(
+    () => ({
+      version,
+      setVersion: setVersionSmooth,
+      ready,
+    }),
+    [version, setVersionSmooth, ready]
   );
 }
-
-const styles = StyleSheet.create({
-  bar: {
-    width: "92%",
-    maxWidth: 720,
-    backgroundColor: "rgba(28,28,30,0.7)",
-    borderColor: "rgba(255,255,255,0.08)",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-  },
-  btn: {
-    width: 40,
-    height: 40,
-    borderRadius: 999,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.12)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  btnActive: {
-    backgroundColor: "rgba(255,236,204,0.08)",
-    borderColor: "rgba(255,236,204,0.7)",
-  },
-  btnText: {
-    color: "#F4F2ED",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  time: {
-    color: "#CBBCA4",
-    fontSize: 14,
-    flexShrink: 1,
-    textAlign: "right",
-    marginLeft: "auto",
-  },
-});

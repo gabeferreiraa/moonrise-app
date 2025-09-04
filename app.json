@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "moonrise-app",
-    "slug": "moonrise-app",
+    "name": "moonrise meditation",
+    "slug": "moonrise meditation",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -9,7 +9,8 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "bundleIdentifier": "com.kravenworks.moonrise",
+      "buildNumber": "1.0.0"
     },
     "android": {
       "adaptiveIcon": {
