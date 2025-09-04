@@ -1,14 +1,15 @@
 import { MotiView } from "moti";
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
+  Dimensions,
   Image,
   ImageSourcePropType,
   Pressable,
   StyleSheet,
-  View,
+  ViewStyle,
 } from "react-native";
+import { Easing } from "react-native-reanimated";
 
-// 8 classic phases
 export type MoonPhase =
   | "new"
   | "waxing-crescent"
@@ -20,18 +21,21 @@ export type MoonPhase =
   | "waning-crescent";
 
 type Props = {
-  /** Force a specific phase or use "auto" to compute from date */
   phase?: MoonPhase | "auto";
-  /** Date to compute the phase from (only used when phase="auto") */
   date?: Date;
-  /** Northern vs Southern hemisphere flips the lighted side */
   hemisphere?: "north" | "south";
-  /** Render size in px (square) */
   size?: number;
-  /** Optional press handler (e.g., to cycle phases) */
   onPress?: () => void;
-  /** Extra style for container */
-  style?: any;
+  style?: ViewStyle;
+
+  /** Animation controls */
+  glideMs?: number; // default 60_000 (1 minute)
+  startAnimation?: boolean; // default true
+
+  /** NEW: simple controls to match website behavior */
+  startScale?: number; // default 1
+  endScale?: number; // default 0.55
+  endYOffset?: number; // default -80 (pixels up from center)
 };
 
 const phaseToImage: Record<MoonPhase, ImageSourcePropType> = {
@@ -45,14 +49,12 @@ const phaseToImage: Record<MoonPhase, ImageSourcePropType> = {
   "waning-crescent": require("@/assets/images/moon_waning_crescent.png"),
 };
 
-// ---- Simple phase calculation ----
-// Returns an index 0..7 for the 8 phases above (UI‑friendly approx).
 function phaseIndexFromDate(d: Date): number {
-  const synodic = 29.530588853; // days
-  const knownNewMoon = new Date(Date.UTC(2000, 0, 6, 18, 14)); // Jan 6 2000 18:14 UTC
+  const synodic = 29.530588853;
+  const knownNewMoon = new Date(Date.UTC(2000, 0, 6, 18, 14));
   const days = (d.getTime() - knownNewMoon.getTime()) / (1000 * 60 * 60 * 24);
   const lunations = (days / synodic) % 1;
-  const frac = (lunations + 1) % 1; // 0..1
+  const frac = (lunations + 1) % 1;
   return Math.floor(frac * 8 + 0.5) % 8;
 }
 
@@ -74,7 +76,16 @@ export default function Moon({
   size = 250,
   onPress,
   style,
+  glideMs = 60_000,
+  startAnimation = true,
+
+  // NEW defaults to match your site
+  startScale = 1,
+  endScale = 0.55,
+  endYOffset = -80, // negative = move up
 }: Props) {
+  const [hasStarted, setHasStarted] = useState(false);
+
   const resolvedPhase = useMemo<MoonPhase>(() => {
     if (phase !== "auto") return phase;
     const i = phaseIndexFromDate(date);
@@ -84,24 +95,32 @@ export default function Moon({
   const source = phaseToImage[resolvedPhase];
   const flipScaleX = hemisphere === "south" ? -1 : 1;
 
-  const content = (
+  useEffect(() => {
+    if (startAnimation) {
+      const t = setTimeout(() => setHasStarted(true), 100);
+      return () => clearTimeout(t);
+    }
+  }, [startAnimation]);
+
+  const screenH = Dimensions.get("window").height;
+  const startY = screenH * 1.0; // off-screen bottom
+  const endY = endYOffset; // lands slightly above center (move up)
+
+  const MoonContent = (
     <MotiView
-      from={{ opacity: 0, scale: 0.98 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ type: "timing", duration: 400 }}
+      from={{ opacity: 1, scale: startScale, translateY: startY }}
+      animate={{
+        opacity: 1,
+        scale: hasStarted ? endScale : startScale, // 1 → 0.55
+        translateY: hasStarted ? endY : startY, // glide up
+      }}
+      transition={{
+        type: "timing",
+        duration: hasStarted ? glideMs : 0,
+        easing: Easing.linear,
+      }}
       style={[styles.wrapper, style, { width: size, height: size }]}
     >
-      {/* Subtle glow */}
-      <View
-        style={[
-          styles.glow,
-          {
-            width: size * 0.9,
-            height: size * 0.9,
-            borderRadius: (size * 0.9) / 2,
-          },
-        ]}
-      />
       <Image
         source={source}
         style={{
@@ -114,15 +133,15 @@ export default function Moon({
     </MotiView>
   );
 
-  if (onPress) return <Pressable onPress={onPress}>{content}</Pressable>;
-  return content;
+  if (onPress) return <Pressable onPress={onPress}>{MoonContent}</Pressable>;
+  return MoonContent;
 }
 
 const styles = StyleSheet.create({
   wrapper: {
+    marginTop: 24, // was 100 — move the moon up immediately
     alignSelf: "center",
     justifyContent: "center",
     alignItems: "center",
   },
-  //
 });
