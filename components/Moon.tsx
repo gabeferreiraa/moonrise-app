@@ -76,7 +76,7 @@ export default function Moon({
   size = 250,
   onPress,
   style,
-  glideMs = 60_000,
+  glideMs = 600_000,
   startAnimation = true,
 
   // NEW defaults to match your site
@@ -103,7 +103,7 @@ export default function Moon({
   }, [startAnimation]);
 
   const screenH = Dimensions.get("window").height;
-  const startY = screenH * 1.0; // off-screen bottom
+  const startY = screenH * 0.65; // off-screen bottom
   const endY = endYOffset; // lands slightly above center (move up)
 
   const MoonContent = (
@@ -112,7 +112,7 @@ export default function Moon({
       animate={{
         opacity: 1,
         scale: hasStarted ? endScale : startScale, // 1 → 0.55
-        translateY: hasStarted ? endY : startY, // glide up
+        translateY: hasStarted ? endY : startY,
       }}
       transition={{
         type: "timing",

@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 18,
-    color: "#F7EBD6",
+    color: "#DEC4A1",
     fontWeight: "500",
     fontFamily: "Lora_400Regular",
     textAlign: "right", // 👈 right-align title text
@@ -149,7 +149,7 @@ const styles = StyleSheet.create({
   },
   link: {
     fontSize: 16,
-    color: "#BCA98F",
+    color: "#DEC4A1",
     paddingLeft: 10,
     paddingTop: 4,
     fontFamily: "Lora_400Regular",

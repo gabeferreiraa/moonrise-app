@@ -8,6 +8,7 @@ import {
   LayoutAnimation,
   Platform,
   Pressable,
+  SafeAreaView,
   StyleSheet,
   Text,
   UIManager,
@@ -16,6 +17,7 @@ import {
 
 import { CormorantGaramond_700Bold } from "@expo-google-fonts/cormorant-garamond";
 import { useFonts } from "expo-font";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type Version = "guided" | "birth" | "life" | "death" | "full";
 
@@ -38,6 +40,10 @@ export default function HomeScreen() {
   const IDLE_MS = 8000;
   const [hudVisible, setHudVisible] = useState(false);
 
+  const moonStartYOffset = 300; // ⬅️ where the moon should start (positive = down)
+  const MOON_GLIDE_MS = 600_000; // ⬅️ 10 minutes
+  const [showMenu, setShowMenu] = useState(false);
+
   // After the first idle fade, About is enabled in the regular nav
   const [aboutEnabled, setAboutEnabled] = useState(false);
 
@@ -50,8 +56,9 @@ export default function HomeScreen() {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     idleTimerRef.current = setTimeout(() => {
       setHudVisible(false);
-      setAboutEnabled(true); // About shows up in the regular nav from now on
-      setTitleLockedOff(true); // Title stays hidden after the first fade
+      setShowMenu(false); // ⬅️ hide menu again on idle
+      setAboutEnabled(true);
+      setTitleLockedOff(true);
     }, IDLE_MS);
   };
 
@@ -66,22 +73,34 @@ export default function HomeScreen() {
     }
   }, []);
 
-  const { version, setVersion } = useCrossfadeAudio(AUDIO_URLS, "guided", {
+  const { version, setVersion } = useCrossfadeAudio(AUDIO_URLS, "full", {
     fadeMs: 1000,
     loop: true,
     autoStart: true,
   });
 
+  const insets = useSafeAreaInsets();
   // Start with HUD visible (title visible/centered); fades after 8s
   useEffect(() => {
     kickIdle();
   }, []);
 
   const handleAnyTouch = () => {
-    // After the first fade, this will NOT bring the title back (locked off),
-    // but it will bring the menu back as usual.
+    setShowMenu(true);
     kickIdle();
   };
+
+  // How far from the physical top you want the moon to start (what your 200px “felt like”)
+  const MOON_SIZE = 260; // keep in sync with <Moon size={260} />
+  const DESIRED_FROM_TOP = 220; // tweak to taste (try 200–260)
+  const maxTop = Math.max(
+    0,
+    Dimensions.get("window").height - MOON_SIZE - insets.bottom - 16 // leave a little breathing room
+  );
+  const moonOffset = Math.min(
+    maxTop,
+    Math.max(0, DESIRED_FROM_TOP - insets.top)
+  );
 
   const open = (g: "Modes" | "Credits" | "Donate" | "Settings" | "About") => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -102,11 +121,12 @@ export default function HomeScreen() {
   const moonEndYOffset = -100; // fixed offset
 
   const isAboutOpen = openMenu === "About";
+  const hideMoon = isAboutOpen;
   // Title is ALWAYS centered when visible; visible only at start (pre-fade) or on About
   const showTitle = isAboutOpen || (!titleLockedOff && hudVisible);
 
   return (
-    <View style={styles.container} onTouchStart={handleAnyTouch}>
+    <SafeAreaView style={styles.container} onTouchStart={handleAnyTouch}>
       {/* Click-away overlay — render BEFORE the menu so the menu stays clickable */}
       {openMenu && (
         <Pressable
@@ -118,10 +138,10 @@ export default function HomeScreen() {
 
       <MotiView
         from={{ opacity: 0 }}
-        animate={{ opacity: hudVisible || !!openMenu ? 1 : 0 }} // ⬅️ was hudVisible ? 1 : 0
+        animate={{ opacity: showMenu || !!openMenu ? 1 : 0 }}
         transition={{ type: "timing", duration: 700 }}
-        style={[styles.menu]}
-        pointerEvents={hudVisible || !!openMenu ? "auto" : "none"} // ⬅️ was hudVisible only
+        style={styles.menu} // ⬅️ no moonOffset on the menu
+        pointerEvents={showMenu || !!openMenu ? "auto" : "none"}
       >
         {openMenu === "Modes" && (
           <MenuGroup
@@ -165,7 +185,10 @@ export default function HomeScreen() {
           <MenuGroup
             label="Donate"
             links={[
-              { title: "Support on Stripe", url: "https://example.com/donate" },
+              {
+                title: "Support on Stripe",
+                url: "https://example.com/donate",
+              },
               { title: "Patreon", url: "https://example.com/patreon" },
             ]}
             isExpanded
@@ -229,7 +252,6 @@ export default function HomeScreen() {
         )}
       </MotiView>
 
-      {/* TITLE — ALWAYS CENTERED when visible; does NOT affect layout */}
       <MotiView
         from={{ opacity: 0 }}
         animate={{ opacity: showTitle ? 1 : 0 }}
@@ -248,26 +270,40 @@ export default function HomeScreen() {
         <Text style={styles.subtitle}>Deva Munay</Text>
       </MotiView>
 
-      {/* MOON — UNCHANGED */}
-      <View onTouchStart={handleAnyTouch}>
-        <Moon
-          size={260}
-          startScale={1}
-          endScale={0.55}
-          endYOffset={moonEndYOffset}
-        />
+      {/* MOON */}
+      <View
+        onTouchStart={handleAnyTouch}
+        style={{
+          position: "absolute",
+          top: moonOffset, // ⬅️ safe-area aware vertical anchor
+          left: 0,
+          right: 0,
+          alignItems: "center",
+          pointerEvents: hideMoon ? "none" : "auto",
+        }}
+      >
+        <MotiView
+          from={{ opacity: 1 }}
+          animate={{ opacity: hideMoon ? 0 : 1 }}
+          transition={{ type: "timing", duration: 500 }}
+        >
+          <Moon
+            size={260}
+            startScale={1}
+            endScale={0.55}
+            endYOffset={moonEndYOffset}
+          />
+        </MotiView>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
-// Styles: leave container/menu exactly as you had them.
-// Centered title overlay is absolute so it WON'T push or move the moon.
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#0C0C0C",
-    paddingTop: 200,
+    // paddingTop: 200, // ⬅️ removed so moonOffset fully controls vertical position
     paddingBottom: 32,
   },
   menu: {
