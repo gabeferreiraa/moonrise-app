@@ -14,6 +14,8 @@ import {
   UIManager,
   View,
 } from "react-native";
+import { SubscribeModal } from "../components/SubscribeModal";
+import { MoonLocationProvider } from "../hooks/useMoonLocation";
 
 import { CormorantGaramond_700Bold } from "@expo-google-fonts/cormorant-garamond";
 import { useFonts } from "expo-font";
@@ -46,6 +48,7 @@ export default function HomeScreen() {
 
   // After the first idle fade, About is enabled in the regular nav
   const [aboutEnabled, setAboutEnabled] = useState(false);
+  const [subscribeOpen, setSubscribeOpen] = useState(false);
 
   // After the first idle fade, keep the title hidden unless About is open
   const [titleLockedOff, setTitleLockedOff] = useState(false);
@@ -128,173 +131,189 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={styles.container} onTouchStart={handleAnyTouch}>
       {/* Click-away overlay — render BEFORE the menu so the menu stays clickable */}
-      {openMenu && (
-        <Pressable
-          style={[StyleSheet.absoluteFill, styles.clickAway]} // ⬅️ add zIndex
-          onPress={closeAll}
-          onTouchStart={handleAnyTouch}
-        />
-      )}
-
-      <MotiView
-        from={{ opacity: 0 }}
-        animate={{ opacity: showMenu || !!openMenu ? 1 : 0 }}
-        transition={{ type: "timing", duration: 700 }}
-        style={styles.menu} // ⬅️ no moonOffset on the menu
-        pointerEvents={showMenu || !!openMenu ? "auto" : "none"}
-      >
-        {openMenu === "Modes" && (
-          <MenuGroup
-            label="Modes"
-            links={[
-              { title: "Guided" },
-              { title: "Birth" },
-              { title: "Life" },
-              { title: "Death" },
-              { title: "Full" },
-            ]}
-            isExpanded
-            onToggle={closeAll}
-            selectedSubId={`Modes:${cap(version)}`}
-            onSubPress={(title) => {
-              const v = title.toLowerCase() as Version;
-              if (v !== version) setVersion(v);
-              kickIdle();
-            }}
-            closeOnLinkPress={false}
+      <MoonLocationProvider>
+        {openMenu && (
+          <Pressable
+            style={[StyleSheet.absoluteFill, styles.clickAway]} // ⬅️ add zIndex
+            onPress={closeAll}
+            onTouchStart={handleAnyTouch}
           />
         )}
 
-        {openMenu === "Credits" && (
-          <MenuGroup
-            label="Credits"
-            links={[
-              { title: "Alchemy crystal singing bowls – Deva Munay" },
-              { title: "Produced by Jeff Bhasker" },
-              { title: "Recorded by Greg Morgenstein" },
-              { title: "Death Be Not Proud – recited by Penny" },
-              { title: "Recorded at Ft. Sufi Big Sur 2024" },
-              { title: "Hear360" },
-            ]}
-            isExpanded
-            onToggle={closeAll}
-          />
-        )}
-
-        {openMenu === "Donate" && (
-          <MenuGroup
-            label="Donate"
-            links={[
-              {
-                title: "Support on Stripe",
-                url: "https://example.com/donate",
-              },
-              { title: "Patreon", url: "https://example.com/patreon" },
-            ]}
-            isExpanded
-            onToggle={closeAll}
-          />
-        )}
-
-        {openMenu === "Settings" && (
-          <MenuGroup
-            label="Settings"
-            links={[
-              { title: "Location" },
-              { title: "Subscribe to newsletter" },
-            ]}
-            isExpanded
-            onToggle={closeAll}
-          />
-        )}
-
-        {/* Top-level labels (About appears here AFTER the first fade) */}
-        {!openMenu && (
-          <>
+        <MotiView
+          from={{ opacity: 0 }}
+          animate={{ opacity: showMenu || !!openMenu ? 1 : 0 }}
+          transition={{ type: "timing", duration: 700 }}
+          style={styles.menu} // ⬅️ no moonOffset on the menu
+          pointerEvents={showMenu || !!openMenu ? "auto" : "none"}
+        >
+          {openMenu === "Modes" && (
             <MenuGroup
               label="Modes"
-              links={[]}
-              isExpanded={false}
-              onToggle={() => open("Modes")}
+              links={[
+                { title: "Guided" },
+                { title: "Birth" },
+                { title: "Life" },
+                { title: "Death" },
+                { title: "Full" },
+              ]}
+              isExpanded
+              onToggle={closeAll}
+              selectedSubId={`Modes:${cap(version)}`}
+              onSubPress={(title) => {
+                const v = title.toLowerCase() as Version;
+                if (v !== version) setVersion(v);
+                kickIdle();
+              }}
+              closeOnLinkPress={false}
             />
+          )}
+
+          {openMenu === "Credits" && (
             <MenuGroup
               label="Credits"
-              links={[]}
-              isExpanded={false}
-              onToggle={() => open("Credits")}
+              links={[
+                { title: "Alchemy crystal singing bowls – Deva Munay" },
+                { title: "Produced by Jeff Bhasker" },
+                { title: "Recorded by Greg Morgenstein" },
+                { title: "Death Be Not Proud – recited by Penny" },
+                { title: "Recorded at Ft. Sufi Big Sur 2024" },
+                { title: "Hear360" },
+              ]}
+              isExpanded
+              onToggle={closeAll}
             />
+          )}
+
+          {openMenu === "Donate" && (
             <MenuGroup
               label="Donate"
-              links={[]}
-              isExpanded={false}
-              onToggle={() => open("Donate")}
+              links={[
+                {
+                  title: "Support on Stripe",
+                  url: "https://example.com/donate",
+                },
+                { title: "Patreon", url: "https://example.com/patreon" },
+              ]}
+              isExpanded
+              onToggle={closeAll}
             />
+          )}
+
+          {openMenu === "Settings" && (
             <MenuGroup
               label="Settings"
-              links={[]}
-              isExpanded={false}
-              onToggle={() => open("Settings")}
+              links={[
+                { title: "Use My Location", action: "use-location" },
+                { title: "Subscribe to newsletter" },
+              ]}
+              isExpanded
+              onToggle={closeAll}
+              onSubPress={(title) => {
+                if (title === "Subscribe to newsletter") {
+                  setSubscribeOpen(true);
+                }
+              }}
             />
-            {aboutEnabled && (
+          )}
+
+          {/* Top-level labels (About appears here AFTER the first fade) */}
+          {!openMenu && (
+            <>
               <MenuGroup
-                label="About"
+                label="Modes"
                 links={[]}
                 isExpanded={false}
-                onToggle={() => open("About")}
+                onToggle={() => open("Modes")}
               />
-            )}
-          </>
-        )}
+              <MenuGroup
+                label="Credits"
+                links={[]}
+                isExpanded={false}
+                onToggle={() => open("Credits")}
+              />
+              <MenuGroup
+                label="Donate"
+                links={[]}
+                isExpanded={false}
+                onToggle={() => open("Donate")}
+              />
+              <MenuGroup
+                label="Settings"
+                links={[]}
+                isExpanded={false}
+                onToggle={() => open("Settings")}
+              />
+              {aboutEnabled && (
+                <MenuGroup
+                  label="About"
+                  links={[]}
+                  isExpanded={false}
+                  onToggle={() => open("About")}
+                />
+              )}
+            </>
+          )}
 
-        {/* Expanded "About" (optional header state) */}
-        {openMenu === "About" && (
-          <MenuGroup label="About" links={[]} isExpanded onToggle={closeAll} />
-        )}
-      </MotiView>
-
-      <MotiView
-        from={{ opacity: 0 }}
-        animate={{ opacity: showTitle ? 1 : 0 }}
-        transition={{ type: "timing", duration: 700 }}
-        style={styles.centerFill}
-        pointerEvents="none"
-      >
-        <Text
-          style={[
-            styles.title,
-            fontsLoaded && { fontFamily: "CormorantGaramond_700Bold" },
-          ]}
-        >
-          MOONRISE
-        </Text>
-        <Text style={styles.subtitle}>Deva Munay</Text>
-      </MotiView>
-
-      {/* MOON */}
-      <View
-        onTouchStart={handleAnyTouch}
-        style={{
-          position: "absolute",
-          top: moonOffset, // ⬅️ safe-area aware vertical anchor
-          left: 0,
-          right: 0,
-          alignItems: "center",
-          pointerEvents: hideMoon ? "none" : "auto",
-        }}
-      >
-        <MotiView
-          from={{ opacity: 1 }}
-          animate={{ opacity: hideMoon ? 0 : 1 }}
-          transition={{ type: "timing", duration: 500 }}
-        >
-          <Moon
-            size={260}
-            startScale={1}
-            endScale={0.55}
-            endYOffset={moonEndYOffset}
-          />
+          {/* Expanded "About" (optional header state) */}
+          {openMenu === "About" && (
+            <MenuGroup
+              label="About"
+              links={[]}
+              isExpanded
+              onToggle={closeAll}
+            />
+          )}
         </MotiView>
-      </View>
+
+        <MotiView
+          from={{ opacity: 0 }}
+          animate={{ opacity: showTitle ? 1 : 0 }}
+          transition={{ type: "timing", duration: 700 }}
+          style={styles.centerFill}
+          pointerEvents="none"
+        >
+          <Text
+            style={[
+              styles.title,
+              fontsLoaded && { fontFamily: "CormorantGaramond_700Bold" },
+            ]}
+          >
+            MOONRISE
+          </Text>
+          <Text style={styles.subtitle}>Deva Munay</Text>
+        </MotiView>
+
+        {/* MOON */}
+        <View
+          onTouchStart={handleAnyTouch}
+          style={{
+            position: "absolute",
+            top: moonOffset, // ⬅️ safe-area aware vertical anchor
+            left: 0,
+            right: 0,
+            alignItems: "center",
+            pointerEvents: hideMoon ? "none" : "auto",
+          }}
+        >
+          <MotiView
+            from={{ opacity: 1 }}
+            animate={{ opacity: hideMoon ? 0 : 1 }}
+            transition={{ type: "timing", duration: 500 }}
+          >
+            <Moon
+              size={260}
+              startScale={1}
+              endScale={0.55}
+              endYOffset={moonEndYOffset}
+            />
+          </MotiView>
+        </View>
+      </MoonLocationProvider>
+      <SubscribeModal
+        visible={subscribeOpen}
+        onClose={() => setSubscribeOpen(false)}
+      />
     </SafeAreaView>
   );
 }

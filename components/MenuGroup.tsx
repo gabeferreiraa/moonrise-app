@@ -1,3 +1,4 @@
+import { useMoonLocationCtx } from "@/hooks/useMoonLocation";
 import { AnimatePresence, MotiView } from "moti";
 import {
   LayoutAnimation,
@@ -9,7 +10,11 @@ import {
 } from "react-native";
 import { Easing } from "react-native-reanimated";
 
-type Link = { title: string; url?: string };
+type Link = {
+  title: string;
+  url?: string;
+  action?: "use-location";
+};
 
 export default function MenuGroup({
   label,
@@ -30,21 +35,46 @@ export default function MenuGroup({
   onSubPress?: (title: string) => void; // called when a non-URL item is pressed
   closeOnLinkPress?: boolean; // for URL links; default true
 }) {
+  // Grab shared location controls (provided by MoonLocationProvider)
+  const moonLoc = useMoonLocationCtx?.() ?? null;
+
   const handleLinkPress = async (link: Link) => {
-    // If link has a URL → open external
+    // 1) External URL → open
     if (link.url) {
       await Linking.openURL(link.url);
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       if (closeOnLinkPress) onToggle();
       return;
     }
-    // Otherwise treat as in-app action (e.g., pick audio version)
+
+    // 2) Location action → trigger permission + location fetch
+    const isUseLocation =
+      link.action === "use-location" || link.title === "Use My Location";
+
+    if (isUseLocation && moonLoc) {
+      await moonLoc.requestLocation();
+      // keep menu open/closed per your preference; currently keeps state
+      // If you want to auto-close: onToggle();
+      return;
+    }
+
+    // 3) Otherwise treat as in-app action
     onSubPress?.(link.title);
   };
 
   const labelStyle = isExpanded
     ? [styles.label, styles.selectedLabel]
     : styles.label;
+
+  // Compute display title for each link (dynamic for "Use My Location")
+  const getDisplayTitle = (link: Link) => {
+    const isUseLocation =
+      link.action === "use-location" || link.title === "Use My Location";
+    if (!isUseLocation || !moonLoc) return link.title;
+
+    if (moonLoc.loading) return "Locating…";
+    return moonLoc.usingDefault ? "Use My Location" : "Using Your Location ✓";
+  };
 
   return (
     <View style={styles.group}>
@@ -87,6 +117,7 @@ export default function MenuGroup({
             {links.map((link, i) => {
               const id = `${label}:${link.title}`;
               const isSelected = selectedSubId === id;
+              const displayTitle = getDisplayTitle(link);
 
               return (
                 <MotiView
@@ -110,7 +141,7 @@ export default function MenuGroup({
                       ]}
                       numberOfLines={1}
                     >
-                      {link.title}
+                      {displayTitle}
                     </Text>
                   </Pressable>
                 </MotiView>
