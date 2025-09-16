@@ -35,6 +35,7 @@ export default function useCrossfadeAudio(
   const liveWhichRef = useRef<"A" | "B">("A");
   const loadGenRef = useRef(0);
   const rafRef = useRef<number | null>(null);
+  const interruptionSubscriptionRef = useRef<any>(null);
 
   // only update UI from the live sound
   const makeStatusHandler = (id: "A" | "B") => (st: AVPlaybackStatus) => {
@@ -45,29 +46,47 @@ export default function useCrossfadeAudio(
     setDuration(st.durationMillis ?? 0);
   };
 
+  // Handle audio interruptions (phone calls, etc.)
+  const handleInterruption = (interruptionStatus: any) => {
+    console.log("Audio interruption status:", interruptionStatus);
+    if (interruptionStatus.isInterrupted) {
+      // Audio was interrupted - iOS will handle pausing automatically
+      console.log("Audio interrupted");
+    } else {
+      // Audio interruption ended - you may want to resume if it was playing before
+      console.log("Audio interruption ended");
+      // Note: You might want to add logic here to resume playback if desired
+    }
+  };
+
   // Configure audio once
   useEffect(() => {
     (async () => {
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: true,
-        shouldDuckAndroid: true,
-        interruptionModeIOS: InterruptionModeIOS.DoNotMix,
-        interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
-        playThroughEarpieceAndroid: false,
-      });
+      try {
+        // Set up audio session for background playback
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: false,
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: true, // Key for background audio
+          shouldDuckAndroid: true,
+          interruptionModeIOS: InterruptionModeIOS.DoNotMix,
+          interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
+          playThroughEarpieceAndroid: false,
+        });
 
-      // Attach status handlers
-      soundARef.current.setOnPlaybackStatusUpdate(makeStatusHandler("A"));
-      soundBRef.current.setOnPlaybackStatusUpdate(makeStatusHandler("B"));
+        // Attach status handlers
+        soundARef.current.setOnPlaybackStatusUpdate(makeStatusHandler("A"));
+        soundBRef.current.setOnPlaybackStatusUpdate(makeStatusHandler("B"));
 
-      if (autoStart) {
-        const uri = sources[initial];
-        if (uri) {
-          // initial start
-          await crossfadeTo(uri, true);
+        if (autoStart) {
+          const uri = sources[initial];
+          if (uri) {
+            // initial start
+            await crossfadeTo(uri, true);
+          }
         }
+      } catch (error) {
+        console.error("Failed to setup audio session:", error);
       }
     })();
 
@@ -190,7 +209,7 @@ export default function useCrossfadeAudio(
           await liveRef.setVolumeAsync(0);
         } catch {}
         liveWhichRef.current = liveWhichRef.current === "A" ? "B" : "A";
-        // fully stop & unload old to avoid any “double”
+        // fully stop & unload old to avoid any "double"
         try {
           await liveRef.stopAsync();
         } catch {}
@@ -210,5 +229,34 @@ export default function useCrossfadeAudio(
     if (uri) crossfadeTo(uri);
   };
 
-  return { version, setVersion, isPlaying, position, duration };
+  // Additional methods for better control
+  const pause = async () => {
+    const liveRef =
+      liveWhichRef.current === "A" ? soundARef.current : soundBRef.current;
+    try {
+      await liveRef.pauseAsync();
+    } catch (error) {
+      console.warn("Failed to pause audio:", error);
+    }
+  };
+
+  const resume = async () => {
+    const liveRef =
+      liveWhichRef.current === "A" ? soundARef.current : soundBRef.current;
+    try {
+      await liveRef.playAsync();
+    } catch (error) {
+      console.warn("Failed to resume audio:", error);
+    }
+  };
+
+  return {
+    version,
+    setVersion,
+    isPlaying,
+    position,
+    duration,
+    pause,
+    resume,
+  };
 }

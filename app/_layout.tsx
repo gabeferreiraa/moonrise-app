@@ -1,4 +1,3 @@
-// app/_layout.tsx
 import {
   DarkTheme,
   DefaultTheme,

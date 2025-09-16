@@ -1,4 +1,3 @@
-import { useMoonLocationCtx } from "@/hooks/useMoonLocation";
 import { AnimatePresence, MotiView } from "moti";
 import {
   LayoutAnimation,
@@ -10,10 +9,10 @@ import {
 } from "react-native";
 import { Easing } from "react-native-reanimated";
 
-type Link = {
+export type Link = {
   title: string;
   url?: string;
-  action?: "use-location";
+  action?: "use-location"; // stable identifier for actions
 };
 
 export default function MenuGroup({
@@ -32,49 +31,24 @@ export default function MenuGroup({
 
   // optional UX helpers
   selectedSubId?: string | null; // e.g. "Modes:Guided"
-  onSubPress?: (title: string) => void; // called when a non-URL item is pressed
+  onSubPress?: (title: string, link?: Link) => void; // ⬅️ pass link back
   closeOnLinkPress?: boolean; // for URL links; default true
 }) {
-  // Grab shared location controls (provided by MoonLocationProvider)
-  const moonLoc = useMoonLocationCtx?.() ?? null;
-
   const handleLinkPress = async (link: Link) => {
-    // 1) External URL → open
+    // If link has a URL → open external
     if (link.url) {
       await Linking.openURL(link.url);
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       if (closeOnLinkPress) onToggle();
       return;
     }
-
-    // 2) Location action → trigger permission + location fetch
-    const isUseLocation =
-      link.action === "use-location" || link.title === "Use My Location";
-
-    if (isUseLocation && moonLoc) {
-      await moonLoc.requestLocation();
-      // keep menu open/closed per your preference; currently keeps state
-      // If you want to auto-close: onToggle();
-      return;
-    }
-
-    // 3) Otherwise treat as in-app action
-    onSubPress?.(link.title);
+    // Otherwise, let parent decide what to do
+    onSubPress?.(link.title, link);
   };
 
   const labelStyle = isExpanded
     ? [styles.label, styles.selectedLabel]
     : styles.label;
-
-  // Compute display title for each link (dynamic for "Use My Location")
-  const getDisplayTitle = (link: Link) => {
-    const isUseLocation =
-      link.action === "use-location" || link.title === "Use My Location";
-    if (!isUseLocation || !moonLoc) return link.title;
-
-    if (moonLoc.loading) return "Locating…";
-    return moonLoc.usingDefault ? "Use My Location" : "Using Your Location ✓";
-  };
 
   return (
     <View style={styles.group}>
@@ -85,7 +59,7 @@ export default function MenuGroup({
           onToggle();
         }}
         hitSlop={8}
-        style={{ alignSelf: "flex-end" }} // keep the tap target aligned right
+        style={{ alignSelf: "flex-end" }}
       >
         <MotiView
           from={{ opacity: 0, translateY: -4 }}
@@ -117,7 +91,6 @@ export default function MenuGroup({
             {links.map((link, i) => {
               const id = `${label}:${link.title}`;
               const isSelected = selectedSubId === id;
-              const displayTitle = getDisplayTitle(link);
 
               return (
                 <MotiView
@@ -135,13 +108,10 @@ export default function MenuGroup({
                 >
                   <Pressable onPress={() => handleLinkPress(link)} hitSlop={6}>
                     <Text
-                      style={[
-                        styles.link,
-                        isSelected && styles.linkSelected, // highlight current
-                      ]}
+                      style={[styles.link, isSelected && styles.linkSelected]}
                       numberOfLines={1}
                     >
-                      {displayTitle}
+                      {link.title}
                     </Text>
                   </Pressable>
                 </MotiView>
@@ -157,16 +127,16 @@ export default function MenuGroup({
 const styles = StyleSheet.create({
   group: {
     marginBottom: 12,
-    alignSelf: "flex-end", // 👈 anchor the whole group to the right
-    alignItems: "flex-end", // 👈 right-align children
-    maxWidth: 420, // avoid stretching across screen
+    alignSelf: "flex-end",
+    alignItems: "flex-end",
+    maxWidth: 420,
   },
   label: {
     fontSize: 18,
     color: "#DEC4A1",
     fontWeight: "500",
     fontFamily: "Lora_400Regular",
-    textAlign: "right", // 👈 right-align title text
+    textAlign: "right",
   },
   selectedLabel: {
     fontSize: 24,
@@ -174,7 +144,7 @@ const styles = StyleSheet.create({
   },
   linksWrap: {
     marginTop: 6,
-    alignSelf: "flex-end", // 👈 keep submenu anchored right under label
+    alignSelf: "flex-end",
     alignItems: "flex-end",
     width: "auto",
   },
@@ -184,7 +154,7 @@ const styles = StyleSheet.create({
     paddingLeft: 10,
     paddingTop: 4,
     fontFamily: "Lora_400Regular",
-    textAlign: "right", // 👈 right-align item text
+    textAlign: "right",
   },
   linkSelected: {
     color: "#FFECCC",
