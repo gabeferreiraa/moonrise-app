@@ -40,7 +40,6 @@ const AUDIO_URLS: Record<Version, string> = {
 };
 
 export default function HomeScreen() {
-  // Provider MUST be above any useMoonLocationCtx() calls:
   return (
     <MoonLocationProvider>
       <HomeInner />
@@ -57,8 +56,6 @@ function HomeInner() {
   const IDLE_MS = 8000;
   const [hudVisible, setHudVisible] = useState(false);
 
-  const moonStartYOffset = 300; // ⬅️ where the moon should start (positive = down)
-  const MOON_GLIDE_MS = 600_000; // ⬅️ 10 minutes
   const [showMenu, setShowMenu] = useState(false);
 
   // After the first idle fade, About is enabled in the regular nav
@@ -99,7 +96,7 @@ function HomeInner() {
   });
 
   const insets = useSafeAreaInsets();
-  // Start with HUD visible (title visible/centered); fades after 8s
+
   useEffect(() => {
     kickIdle();
   }, []);
@@ -109,7 +106,6 @@ function HomeInner() {
     kickIdle();
   };
 
-  // How far from the physical top you want the moon to start (what your 200px “felt like”)
   const MOON_SIZE = 260; // keep in sync with <Moon size={260} />
   const DESIRED_FROM_TOP = 220; // tweak to taste (try 200–260)
   const maxTop = Math.max(
@@ -208,10 +204,10 @@ function HomeInner() {
             label="Donate"
             links={[
               {
-                title: "Support on Stripe",
+                title: "Donate to charity",
                 url: "https://example.com/donate",
               },
-              { title: "Patreon", url: "https://example.com/patreon" },
+              { title: "Other charity", url: "https://example.com/patreon" },
             ]}
             isExpanded
             onToggle={closeAll}
@@ -222,14 +218,17 @@ function HomeInner() {
           <MenuGroup
             label="Settings"
             links={[
-              { title: "Use My Location", action: "use-location" },
+              {
+                title: "Share location for correct moon phase",
+                action: "use-location",
+              },
               { title: "Subscribe to newsletter" },
             ]}
             isExpanded
             onToggle={closeAll}
             onSubPress={async (_title, link) => {
               if (link?.action === "use-location") {
-                await requestOnce(); // triggers Expo’s foreground permission + location fetch
+                await requestOnce();
               }
 
               if (_title === "Subscribe to newsletter") {
@@ -337,7 +336,7 @@ const styles = StyleSheet.create({
   },
   menu: {
     position: "absolute",
-    top: 48,
+    top: 60,
     right: 20,
     alignItems: "flex-end",
     zIndex: 2,

@@ -150,7 +150,7 @@ const styles = StyleSheet.create({
   },
   link: {
     fontSize: 16,
-    color: "#DEC4A1",
+    color: "#CBBCA4",
     paddingLeft: 10,
     paddingTop: 4,
     fontFamily: "Lora_400Regular",
@@ -158,5 +158,6 @@ const styles = StyleSheet.create({
   },
   linkSelected: {
     color: "#FFECCC",
+    fontWeight: "condensed",
   },
 });
