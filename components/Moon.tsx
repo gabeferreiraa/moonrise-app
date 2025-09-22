@@ -34,8 +34,13 @@ type Props = {
 
   /** NEW: simple controls to match website behavior */
   startScale?: number; // default 1
-  endScale?: number; // default 0.55
-  endYOffset?: number; // default -80 (pixels up from center)
+  endScale?: number;
+  endYOffset?: number;
+  /** Tint controls */
+  tintColor?: string;
+  tintOpacity?: number;
+
+  fadeTintOutAtEnd?: boolean; // <- add this
 };
 
 const phaseToImage: Record<MoonPhase, ImageSourcePropType> = {
@@ -46,7 +51,7 @@ const phaseToImage: Record<MoonPhase, ImageSourcePropType> = {
   full: require("@/assets/images/moon_full.png"),
   "waning-gibbous": require("@/assets/images/moon_waning_gibbous.png"),
   "last-quarter": require("@/assets/images/moon_last_quarter.png"),
-  "waning-crescent": require("@/assets/images/moon_waning_crescent.png"),
+  "waning-crescent": require("@/assets/images/moon_full.png"),
 };
 
 function phaseIndexFromDate(d: Date): number {
@@ -81,8 +86,12 @@ export default function Moon({
 
   // NEW defaults to match your site
   startScale = 1,
-  endScale = 0.55,
+  endScale = 0.35,
   endYOffset = -80, // negative = move up
+
+  tintColor = "#e37a2e",
+  tintOpacity = 0.45,
+  fadeTintOutAtEnd = true,
 }: Props) {
   const [hasStarted, setHasStarted] = useState(false);
 
@@ -103,8 +112,8 @@ export default function Moon({
   }, [startAnimation]);
 
   const screenH = Dimensions.get("window").height;
-  const startY = screenH * 0.65; // off-screen bottom
-  const endY = endYOffset; // lands slightly above center (move up)
+  const startY = screenH * 0.65;
+  const endY = endYOffset;
 
   const MoonContent = (
     <MotiView
@@ -130,6 +139,32 @@ export default function Moon({
           transform: [{ scaleX: flipScaleX }],
         }}
       />
+
+      {/* Tinted overlay that fades out by the end */}
+      <MotiView
+        from={{ opacity: tintOpacity }}
+        animate={{ opacity: hasStarted ? 0 : tintOpacity }}
+        transition={{
+          type: "timing",
+          duration: hasStarted ? glideMs : 0,
+          easing: Easing.linear,
+        }}
+        style={StyleSheet.absoluteFill}
+        pointerEvents="none"
+      >
+        <Image
+          source={source}
+          style={{
+            width: size,
+            height: size,
+            resizeMode: "contain",
+            transform: [{ scaleX: flipScaleX }],
+            tintColor: tintColor,
+            opacity: 1,
+          }}
+          accessible={false}
+        />
+      </MotiView>
     </MotiView>
   );
 
@@ -139,7 +174,7 @@ export default function Moon({
 
 const styles = StyleSheet.create({
   wrapper: {
-    marginTop: 24, // was 100 — move the moon up immediately
+    marginTop: 24,
     alignSelf: "center",
     justifyContent: "center",
     alignItems: "center",

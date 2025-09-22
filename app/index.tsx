@@ -131,10 +131,6 @@ function HomeInner() {
 
   const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-  // KEEP THE MOON EXACTLY AS IN YOUR CHUNK
-  const screenH = Dimensions.get("window").height;
-  const moonEndYOffset = -100; // fixed offset
-
   const isAboutOpen = openMenu === "About";
   const hideMoon = isAboutOpen;
   // Title is ALWAYS centered when visible; visible only at start (pre-fade) or on About
@@ -299,12 +295,11 @@ function HomeInner() {
         <Text style={styles.subtitle}>Deva Munay</Text>
       </MotiView>
 
-      {/* MOON */}
       <View
         onTouchStart={handleAnyTouch}
         style={{
           position: "absolute",
-          top: moonOffset, // ⬅️ safe-area aware vertical anchor
+          top: moonOffset,
           left: 0,
           right: 0,
           alignItems: "center",
@@ -316,7 +311,15 @@ function HomeInner() {
           animate={{ opacity: hideMoon ? 0 : 1 }}
           transition={{ type: "timing", duration: 500 }}
         >
-          <Moon size={260} startScale={1} endScale={0.55} endYOffset={-100} />
+          <Moon
+            size={260}
+            startScale={1}
+            endScale={0.35}
+            endYOffset={-80}
+            tintColor="#e37a2e"
+            tintOpacity={0.6}
+            fadeTintOutAtEnd
+          />
         </MotiView>
       </View>
 
