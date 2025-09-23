@@ -1,262 +1,283 @@
-// hooks/useCrossfadeAudio.ts
-import {
-  Audio,
-  AVPlaybackStatus,
-  InterruptionModeAndroid,
-  InterruptionModeIOS,
-} from "expo-av";
-import { useEffect, useRef, useState } from "react";
+import { Audio } from "expo-av";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-export type Version = "guided" | "birth" | "life" | "death" | "full";
+export type Version =
+  | "guided"
+  | "birth"
+  | "life"
+  | "death"
+  | "full"
+  | "deathBeNotProud";
 
 type Options = {
-  fadeMs?: number; // default 2000
-  loop?: boolean; // default true
-  autoStart?: boolean; // default true
+  fadeMs?: number;
+  loop?: boolean;
+  autoStart?: boolean;
+  preloadAll?: boolean;
+};
+
+type TrackState = {
+  sound: Audio.Sound;
+  isActive: boolean;
+  volume: number;
 };
 
 export default function useCrossfadeAudio(
-  sources: Record<Version, string>,
+  urls: Record<Version, string>,
   initial: Version,
   opts: Options = {}
 ) {
-  const fadeMs = opts.fadeMs ?? 2000;
-  const loop = opts.loop ?? true;
-  const autoStart = opts.autoStart ?? true;
+  const {
+    fadeMs = 800,
+    loop = true,
+    autoStart = true,
+    preloadAll = true,
+  } = opts;
 
-  const [version, setVersionState] = useState<Version>(initial);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [position, setPosition] = useState(0);
-  const [duration, setDuration] = useState(0);
+  const [version, setVersion] = useState<Version>(initial);
+  const [isReady, setIsReady] = useState(false);
 
-  // Two persistent Sound instances (like two <audio> tags on web)
-  const soundARef = useRef(new Audio.Sound());
-  const soundBRef = useRef(new Audio.Sound());
-  const liveWhichRef = useRef<"A" | "B">("A");
-  const loadGenRef = useRef(0);
-  const rafRef = useRef<number | null>(null);
-  const interruptionSubscriptionRef = useRef<any>(null);
+  // Store all loaded sounds
+  const tracksRef = useRef<Map<Version, TrackState>>(new Map());
+  const isInitializedRef = useRef(false);
+  const isTransitioningRef = useRef(false);
+  const fadeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const currentPositionRef = useRef<number>(0);
+  const positionTrackerRef = useRef<ReturnType<typeof setInterval> | null>(
+    null
+  );
 
-  // only update UI from the live sound
-  const makeStatusHandler = (id: "A" | "B") => (st: AVPlaybackStatus) => {
-    if (!st.isLoaded) return;
-    if (liveWhichRef.current !== id) return;
-    setIsPlaying(st.isPlaying);
-    setPosition(st.positionMillis ?? 0);
-    setDuration(st.durationMillis ?? 0);
-  };
-
-  // Handle audio interruptions (phone calls, etc.)
-  const handleInterruption = (interruptionStatus: any) => {
-    console.log("Audio interruption status:", interruptionStatus);
-    if (interruptionStatus.isInterrupted) {
-      // Audio was interrupted - iOS will handle pausing automatically
-      console.log("Audio interrupted");
-    } else {
-      // Audio interruption ended - you may want to resume if it was playing before
-      console.log("Audio interruption ended");
-      // Note: You might want to add logic here to resume playback if desired
-    }
-  };
-
-  // Configure audio once
+  // Initialize audio and preload all tracks
   useEffect(() => {
-    (async () => {
+    if (isInitializedRef.current) return;
+    isInitializedRef.current = true;
+
+    const init = async () => {
       try {
-        // Set up audio session for background playback
+        console.log("Initializing audio system...");
+
         await Audio.setAudioModeAsync({
           allowsRecordingIOS: false,
           playsInSilentModeIOS: true,
-          staysActiveInBackground: true, // Key for background audio
+          staysActiveInBackground: true,
           shouldDuckAndroid: true,
-          interruptionModeIOS: InterruptionModeIOS.DoNotMix,
-          interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
-          playThroughEarpieceAndroid: false,
         });
 
-        // Attach status handlers
-        soundARef.current.setOnPlaybackStatusUpdate(makeStatusHandler("A"));
-        soundBRef.current.setOnPlaybackStatusUpdate(makeStatusHandler("B"));
+        // Preload all tracks or just the initial one
+        const versionsToLoad = preloadAll
+          ? (Object.keys(urls) as Version[])
+          : [initial];
 
-        if (autoStart) {
-          const uri = sources[initial];
-          if (uri) {
-            // initial start
-            await crossfadeTo(uri, true);
-          }
+        console.log(`Preloading ${versionsToLoad.length} tracks...`);
+
+        await Promise.all(
+          versionsToLoad.map(async (ver) => {
+            const sound = new Audio.Sound();
+
+            try {
+              await sound.loadAsync(
+                { uri: urls[ver] },
+                {
+                  shouldPlay: false,
+                  isLooping: loop,
+                  volume: ver === initial ? 1.0 : 0.0,
+                  progressUpdateIntervalMillis: 100,
+                }
+              );
+
+              tracksRef.current.set(ver, {
+                sound,
+                isActive: ver === initial,
+                volume: ver === initial ? 1.0 : 0.0,
+              });
+
+              console.log(`Loaded: ${ver}`);
+            } catch (error) {
+              console.error(`Failed to load ${ver}:`, error);
+            }
+          })
+        );
+
+        // Start playing the initial track
+        const initialTrack = tracksRef.current.get(initial);
+        if (initialTrack && autoStart) {
+          await initialTrack.sound.playAsync();
+          console.log("Started playback:", initial);
+
+          // Start tracking position
+          startPositionTracking(initialTrack.sound);
         }
+
+        setIsReady(true);
+        console.log("Audio system ready!");
       } catch (error) {
-        console.error("Failed to setup audio session:", error);
+        console.error("Audio init failed:", error);
       }
-    })();
+    };
+
+    init();
 
     return () => {
-      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
-      (async () => {
-        try {
-          await soundARef.current.stopAsync();
-        } catch {}
-        try {
-          await soundARef.current.unloadAsync();
-        } catch {}
-        try {
-          await soundBRef.current.stopAsync();
-        } catch {}
-        try {
-          await soundBRef.current.unloadAsync();
-        } catch {}
-      })();
+      // Cleanup
+      if (positionTrackerRef.current) {
+        clearInterval(positionTrackerRef.current);
+      }
+      if (fadeIntervalRef.current) {
+        clearInterval(fadeIntervalRef.current);
+      }
+
+      tracksRef.current.forEach(({ sound }) => {
+        sound.unloadAsync().catch(() => {});
+      });
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urls, initial, loop, autoStart, preloadAll]);
+
+  // Track position of current playing track
+  const startPositionTracking = useCallback((sound: Audio.Sound) => {
+    if (positionTrackerRef.current) {
+      clearInterval(positionTrackerRef.current);
+    }
+
+    positionTrackerRef.current = setInterval(async () => {
+      try {
+        const status = await sound.getStatusAsync();
+        if (status.isLoaded && status.positionMillis !== undefined) {
+          currentPositionRef.current = status.positionMillis;
+        }
+      } catch (error) {
+        // Ignore errors during position tracking
+      }
+    }, 100);
   }, []);
 
-  /**
-   * Core crossfade:
-   *  - read outgoing position
-   *  - load incoming at SAME position (no downloadFirst to reduce delay)
-   *  - start incoming muted, wait until it's actually playing
-   *  - equal-power fade with requestAnimationFrame
-   */
-  const crossfadeTo = async (nextUri: string, firstStart = false) => {
-    const myGen = ++loadGenRef.current;
-
-    const liveRef =
-      liveWhichRef.current === "A" ? soundARef.current : soundBRef.current;
-    const altRef =
-      liveWhichRef.current === "A" ? soundBRef.current : soundARef.current;
-
-    // 1) read timeline from outgoing
-    let startPos = 0;
-    if (!firstStart) {
-      try {
-        const st = await liveRef.getStatusAsync();
-        if (st.isLoaded) startPos = st.positionMillis ?? 0;
-      } catch {}
-    }
-
-    // 2) ensure incoming is unloaded then (re)load next source
-    try {
-      await altRef.stopAsync();
-    } catch {}
-    try {
-      await altRef.unloadAsync();
-    } catch {}
-    try {
-      await altRef.loadAsync(
-        { uri: nextUri },
-        {
-          positionMillis: startPos,
-          shouldPlay: false,
-          volume: 0,
-          isLooping: loop,
-          progressUpdateIntervalMillis: 150,
-        },
-        /* downloadFirst */ false
-      );
-    } catch (e) {
-      console.warn("[Audio] loadAsync failed:", e);
-      return;
-    }
-    if (myGen !== loadGenRef.current) return; // abandoned
-
-    // 3) start incoming (muted) and snap position once more post-play
-    try {
-      await altRef.playAsync();
-      // Tighten sync after decoder starts:
-      await altRef.setPositionAsync(startPos);
-      await altRef.setRateAsync(1.0, true);
-    } catch (e) {
-      console.warn("[Audio] play/position failed:", e);
-    }
-    if (myGen !== loadGenRef.current) return;
-
-    // Make sure outgoing is at full gain
-    try {
-      const st = await liveRef.getStatusAsync();
-      if (st.isLoaded) {
-        const v = (st as any).volume ?? 1;
-        if (v < 0.999) await liveRef.setVolumeAsync(1);
+  // Handle version changes with crossfade
+  const changeVersion = useCallback(
+    async (newVersion: Version) => {
+      if (newVersion === version || isTransitioningRef.current || !isReady) {
+        return;
       }
-    } catch {}
 
-    // 4) equal-power crossfade with RAF
-    if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
-    const t0 = performance.now();
-    const dur = Math.max(80, fadeMs);
-
-    const step = async (t: number) => {
-      if (myGen !== loadGenRef.current) return;
-      const k = Math.min(1, (t - t0) / dur);
-      const theta = (k * Math.PI) / 2; // 0→π/2
-      const inV = Math.sin(theta); // equal-power in
-      const outV = Math.cos(theta); // equal-power out
+      isTransitioningRef.current = true;
+      console.log(`Transitioning: ${version} → ${newVersion}`);
 
       try {
-        await altRef.setVolumeAsync(inV);
-      } catch {}
-      try {
-        await liveRef.setVolumeAsync(outV);
-      } catch {}
+        const currentTrack = tracksRef.current.get(version);
+        let newTrack = tracksRef.current.get(newVersion);
 
-      if (k < 1) {
-        rafRef.current = requestAnimationFrame(step);
-      } else {
-        // finalize
-        try {
-          await altRef.setVolumeAsync(1);
-        } catch {}
-        try {
-          await liveRef.setVolumeAsync(0);
-        } catch {}
-        liveWhichRef.current = liveWhichRef.current === "A" ? "B" : "A";
-        // fully stop & unload old to avoid any "double"
-        try {
-          await liveRef.stopAsync();
-        } catch {}
-        try {
-          await liveRef.unloadAsync();
-        } catch {}
-        rafRef.current = null;
+        if (!currentTrack) {
+          console.error("Current track not found");
+          isTransitioningRef.current = false;
+          return;
+        }
+
+        // Load new track if not preloaded
+        if (!newTrack && !preloadAll) {
+          console.log(`Loading track on demand: ${newVersion}`);
+          const sound = new Audio.Sound();
+
+          await sound.loadAsync(
+            { uri: urls[newVersion] },
+            {
+              shouldPlay: false,
+              isLooping: loop,
+              volume: 0,
+              progressUpdateIntervalMillis: 100,
+            }
+          );
+
+          newTrack = {
+            sound,
+            isActive: false,
+            volume: 0,
+          };
+
+          tracksRef.current.set(newVersion, newTrack);
+        }
+
+        if (!newTrack) {
+          console.error("New track not available");
+          isTransitioningRef.current = false;
+          return;
+        }
+
+        // Get current position for syncing
+        const syncPosition = currentPositionRef.current;
+        console.log(`Syncing to position: ${Math.round(syncPosition / 1000)}s`);
+
+        // Set new track to same position (slightly ahead to compensate for processing delay)
+        const compensatedPosition = Math.max(0, syncPosition + 50); // 50ms ahead
+        await newTrack.sound.setPositionAsync(compensatedPosition);
+
+        // Start new track at zero volume
+        await newTrack.sound.setVolumeAsync(0);
+        await newTrack.sound.playAsync();
+
+        // Update tracking to new sound
+        startPositionTracking(newTrack.sound);
+
+        // Clear any existing fade
+        if (fadeIntervalRef.current) {
+          clearInterval(fadeIntervalRef.current);
+        }
+
+        // Perform crossfade
+        const startTime = Date.now();
+        const fadeDuration = fadeMs;
+
+        fadeIntervalRef.current = setInterval(async () => {
+          const elapsed = Date.now() - startTime;
+          const progress = Math.min(1, elapsed / fadeDuration);
+
+          // Use exponential curve for smoother fade
+          const easeProgress = 1 - Math.pow(1 - progress, 3);
+
+          const oldVolume = Math.max(0, 1 - easeProgress);
+          const newVolume = Math.min(1, easeProgress);
+
+          try {
+            await Promise.all([
+              currentTrack.sound.setVolumeAsync(oldVolume),
+              newTrack.sound.setVolumeAsync(newVolume),
+            ]);
+
+            currentTrack.volume = oldVolume;
+            newTrack.volume = newVolume;
+          } catch (error) {
+            console.error("Volume update failed:", error);
+          }
+
+          if (progress >= 1) {
+            // Fade complete
+            clearInterval(fadeIntervalRef.current!);
+            fadeIntervalRef.current = null;
+
+            // Stop and reset old track
+            try {
+              await currentTrack.sound.pauseAsync();
+              await currentTrack.sound.setPositionAsync(0);
+              currentTrack.isActive = false;
+            } catch (error) {
+              console.error("Failed to stop old track:", error);
+            }
+
+            newTrack.isActive = true;
+            setVersion(newVersion);
+            isTransitioningRef.current = false;
+
+            console.log("Transition complete!");
+          }
+        }, 16); // ~60fps for smooth fade
+      } catch (error) {
+        console.error("Transition failed:", error);
+        isTransitioningRef.current = false;
       }
-    };
-    rafRef.current = requestAnimationFrame(step);
-  };
-
-  // public API: set version and crossfade
-  const setVersion = (v: Version) => {
-    setVersionState(v);
-    const uri = sources[v];
-    if (uri) crossfadeTo(uri);
-  };
-
-  // Additional methods for better control
-  const pause = async () => {
-    const liveRef =
-      liveWhichRef.current === "A" ? soundARef.current : soundBRef.current;
-    try {
-      await liveRef.pauseAsync();
-    } catch (error) {
-      console.warn("Failed to pause audio:", error);
-    }
-  };
-
-  const resume = async () => {
-    const liveRef =
-      liveWhichRef.current === "A" ? soundARef.current : soundBRef.current;
-    try {
-      await liveRef.playAsync();
-    } catch (error) {
-      console.warn("Failed to resume audio:", error);
-    }
-  };
+    },
+    [version, isReady, fadeMs, loop, urls, preloadAll, startPositionTracking]
+  );
 
   return {
     version,
-    setVersion,
-    isPlaying,
-    position,
-    duration,
-    pause,
-    resume,
+    setVersion: changeVersion,
+    isReady,
   };
 }

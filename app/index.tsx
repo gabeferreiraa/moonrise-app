@@ -4,10 +4,12 @@ import useCrossfadeAudio from "@/hooks/useCrossfadeAudio";
 import { MotiView } from "moti";
 import React, { useEffect, useRef, useState } from "react";
 import {
+  Alert,
   Dimensions,
   LayoutAnimation,
   Platform,
   Pressable,
+  Share,
   StyleSheet,
   Text,
   UIManager,
@@ -26,7 +28,13 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 
-type Version = "guided" | "birth" | "life" | "death" | "full";
+type Version =
+  | "guided"
+  | "birth"
+  | "life"
+  | "death"
+  | "full"
+  | "deathBeNotProud";
 
 const AUDIO_URLS: Record<Version, string> = {
   guided:
@@ -37,6 +45,8 @@ const AUDIO_URLS: Record<Version, string> = {
   death:
     "https://firebasestorage.googleapis.com/v0/b/moonrise001-5aa1c.firebasestorage.app/o/Moonrise_Death%20Stereo%20Printmaster_202050725.mp3?alt=media&token=8d601f5e-b894-4cbd-9131-de0cefcca58b",
   full: "https://firebasestorage.googleapis.com/v0/b/moonrise001-5aa1c.firebasestorage.app/o/Moonrise_Full%20Album%20Stereo%20Printmaster_202050725.mp3?alt=media&token=8107d004-0733-4ee7-8c64-28feffd96c66",
+  deathBeNotProud:
+    "https://firebasestorage.googleapis.com/v0/b/moonrise001-5aa1c.firebasestorage.app/o/Moonrise_Death%20No%20Poem%20Outro_Stereo%20Printmaster_202050726.mp3?alt=media&token=3e18c536-b830-4185-a07e-a56f6604d04c",
 };
 
 export default function HomeScreen() {
@@ -52,19 +62,42 @@ function HomeInner() {
     "Modes" | "Credits" | "Donate" | "Settings" | "About" | null
   >(null);
 
-  // Idle HUD (8s)
   const IDLE_MS = 8000;
   const [hudVisible, setHudVisible] = useState(false);
-
   const [showMenu, setShowMenu] = useState(false);
-
-  // After the first idle fade, About is enabled in the regular nav
   const [aboutEnabled, setAboutEnabled] = useState(false);
   const [subscribeOpen, setSubscribeOpen] = useState(false);
   const { requestOnce } = useMoonLocationCtx();
-
-  // After the first idle fade, keep the title hidden unless About is open
   const [titleLockedOff, setTitleLockedOff] = useState(false);
+
+  // Audio hook - simplified
+  const { version, setVersion, isReady } = useCrossfadeAudio(
+    AUDIO_URLS,
+    "full",
+    {
+      fadeMs: 1000,
+      loop: true,
+      autoStart: true,
+    }
+  );
+
+  // Share app function
+  async function shareApp() {
+    try {
+      const url =
+        "https://apps.apple.com/us/app/moonrise-meditation/id6751916223";
+      const shareTitle = "Moonrise — ambient album app";
+
+      await Share.share(
+        Platform.select({
+          ios: { url, shareTitle },
+          android: { message: `${shareTitle}\n${url}` },
+        })!
+      );
+    } catch (error) {
+      Alert.alert("Could not share", String(error));
+    }
+  }
 
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const kickIdle = () => {
@@ -72,7 +105,7 @@ function HomeInner() {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     idleTimerRef.current = setTimeout(() => {
       setHudVisible(false);
-      setShowMenu(false); // ⬅️ hide menu again on idle
+      setShowMenu(false);
       setAboutEnabled(true);
       setTitleLockedOff(true);
     }, IDLE_MS);
@@ -89,12 +122,6 @@ function HomeInner() {
     }
   }, []);
 
-  const { version, setVersion } = useCrossfadeAudio(AUDIO_URLS, "full", {
-    fadeMs: 1000,
-    loop: true,
-    autoStart: true,
-  });
-
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
@@ -106,11 +133,11 @@ function HomeInner() {
     kickIdle();
   };
 
-  const MOON_SIZE = 260; // keep in sync with <Moon size={260} />
-  const DESIRED_FROM_TOP = 220; // tweak to taste (try 200–260)
+  const MOON_SIZE = 260;
+  const DESIRED_FROM_TOP = 220;
   const maxTop = Math.max(
     0,
-    Dimensions.get("window").height - MOON_SIZE - insets.bottom - 16 // leave a little breathing room
+    Dimensions.get("window").height - MOON_SIZE - insets.bottom - 16
   );
   const moonOffset = Math.min(
     maxTop,
@@ -133,7 +160,6 @@ function HomeInner() {
 
   const isAboutOpen = openMenu === "About";
   const hideMoon = isAboutOpen;
-  // Title is ALWAYS centered when visible; visible only at start (pre-fade) or on About
   const showTitle = isAboutOpen || (!titleLockedOff && hudVisible);
 
   return (
@@ -144,7 +170,7 @@ function HomeInner() {
     >
       {openMenu && (
         <Pressable
-          style={[StyleSheet.absoluteFill, styles.clickAway]} // ⬅️ add zIndex
+          style={[StyleSheet.absoluteFill, styles.clickAway]}
           onPress={closeAll}
           onTouchStart={handleAnyTouch}
         />
@@ -154,7 +180,7 @@ function HomeInner() {
         from={{ opacity: 0 }}
         animate={{ opacity: showMenu || !!openMenu ? 1 : 0 }}
         transition={{ type: "timing", duration: 700 }}
-        style={styles.menu} // ⬅️ no moonOffset on the menu
+        style={styles.menu}
         pointerEvents={showMenu || !!openMenu ? "auto" : "none"}
       >
         {openMenu === "Modes" && (
@@ -166,13 +192,30 @@ function HomeInner() {
               { title: "Life" },
               { title: "Death" },
               { title: "Full" },
+              { title: "Death - Be Not Proud" },
             ]}
             isExpanded
             onToggle={closeAll}
-            selectedSubId={`Modes:${cap(version)}`}
+            selectedSubId={`Modes:${
+              version === "deathBeNotProud"
+                ? "Death - Be Not Proud"
+                : cap(version)
+            }`}
             onSubPress={(title) => {
-              const v = title.toLowerCase() as Version;
-              if (v !== version) setVersion(v);
+              let newVersion: Version;
+
+              if (title === "Death - Be Not Proud") {
+                newVersion = "deathBeNotProud";
+              } else {
+                newVersion = title.toLowerCase() as Version;
+              }
+
+              console.log("Menu clicked:", title, "->", newVersion);
+              console.log("Current version before:", version);
+
+              setVersion(newVersion);
+
+              console.log("setVersion called with:", newVersion);
               kickIdle();
             }}
             closeOnLinkPress={false}
@@ -226,7 +269,6 @@ function HomeInner() {
               if (link?.action === "use-location") {
                 await requestOnce();
               }
-
               if (_title === "Subscribe to newsletter") {
                 setSubscribeOpen(true);
               }
@@ -271,9 +313,18 @@ function HomeInner() {
           </>
         )}
 
-        {/* Expanded "About" (optional header state) */}
         {openMenu === "About" && (
-          <MenuGroup label="About" links={[]} isExpanded onToggle={closeAll} />
+          <MenuGroup
+            label="About"
+            links={[{ title: "Share Moonrise", url: undefined }]}
+            isExpanded
+            onToggle={closeAll}
+            onSubPress={(title) => {
+              if (title === "Share Moonrise") {
+                shareApp();
+              }
+            }}
+          />
         )}
       </MotiView>
 
