@@ -44,14 +44,14 @@ type Props = {
 };
 
 const phaseToImage: Record<MoonPhase, ImageSourcePropType> = {
-  new: require("@/assets/images/moon_new.png"),
-  "waxing-crescent": require("@/assets/images/moon_waxing_crescent.png"),
-  "first-quarter": require("@/assets/images/moon_first_quarter.png"),
-  "waxing-gibbous": require("@/assets/images/moon_waxing_gibbous.png"),
-  full: require("@/assets/images/moon_full.png"),
-  "waning-gibbous": require("@/assets/images/moon_waning_gibbous.png"),
-  "last-quarter": require("@/assets/images/moon_last_quarter.png"),
-  "waning-crescent": require("@/assets/images/moon_full.png"),
+  new: require("@/assets/images/output/moon_full.png"),
+  "waxing-crescent": require("@/assets/images/output/moon_waxing_crescent.png"),
+  "first-quarter": require("@/assets/images/output/moon_first_quarter.png"),
+  "waxing-gibbous": require("@/assets/images/output/moon_waxing_gibbous.png"),
+  full: require("@/assets/images/output/moon_full.png"),
+  "waning-gibbous": require("@/assets/images/output/moon_waning_gibbous.png"),
+  "last-quarter": require("@/assets/images/output/moon_last_quarter.png"),
+  "waning-crescent": require("@/assets/images/output/moon_waning_crescent.png"),
 };
 
 function phaseIndexFromDate(d: Date): number {
@@ -90,7 +90,7 @@ export default function Moon({
   endYOffset = -80, // negative = move up
 
   tintColor = "#e37a2e",
-  tintOpacity = 0.45,
+  tintOpacity = 0.25,
   fadeTintOutAtEnd = true,
 }: Props) {
   const [hasStarted, setHasStarted] = useState(false);
@@ -110,6 +110,10 @@ export default function Moon({
       return () => clearTimeout(t);
     }
   }, [startAnimation]);
+
+  // if (resolvedPhase === "new") {
+  //   return null;
+  // }
 
   const screenH = Dimensions.get("window").height;
   const startY = screenH * 0.65;
@@ -139,32 +143,6 @@ export default function Moon({
           transform: [{ scaleX: flipScaleX }],
         }}
       />
-
-      {/* Tinted overlay that fades out by the end */}
-      <MotiView
-        from={{ opacity: tintOpacity }}
-        animate={{ opacity: hasStarted ? 0 : tintOpacity }}
-        transition={{
-          type: "timing",
-          duration: hasStarted ? glideMs : 0,
-          easing: Easing.linear,
-        }}
-        style={StyleSheet.absoluteFill}
-        pointerEvents="none"
-      >
-        <Image
-          source={source}
-          style={{
-            width: size,
-            height: size,
-            resizeMode: "contain",
-            transform: [{ scaleX: flipScaleX }],
-            tintColor: tintColor,
-            opacity: 1,
-          }}
-          accessible={false}
-        />
-      </MotiView>
     </MotiView>
   );
 

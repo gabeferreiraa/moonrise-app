@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons"; // Add this import
 import { AnimatePresence, MotiView } from "moti";
 import {
   LayoutAnimation,
@@ -12,7 +13,8 @@ import { Easing } from "react-native-reanimated";
 export type Link = {
   title: string;
   url?: string;
-  action?: "use-location"; // stable identifier for actions
+  action?: "use-location";
+  icon?: string;
 };
 
 export default function MenuGroup({
@@ -28,21 +30,17 @@ export default function MenuGroup({
   links: Link[];
   isExpanded: boolean;
   onToggle: () => void;
-
-  // optional UX helpers
-  selectedSubId?: string | null; // e.g. "Modes:Guided"
-  onSubPress?: (title: string, link?: Link) => void; // ⬅️ pass link back
-  closeOnLinkPress?: boolean; // for URL links; default true
+  selectedSubId?: string | null;
+  onSubPress?: (title?: string, link?: Link) => void;
+  closeOnLinkPress?: boolean;
 }) {
   const handleLinkPress = async (link: Link) => {
-    // If link has a URL → open external
     if (link.url) {
       await Linking.openURL(link.url);
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       if (closeOnLinkPress) onToggle();
       return;
     }
-    // Otherwise, let parent decide what to do
     onSubPress?.(link.title, link);
   };
 
@@ -52,7 +50,6 @@ export default function MenuGroup({
 
   return (
     <View style={styles.group}>
-      {/* Top-level label */}
       <Pressable
         onPress={() => {
           LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -74,7 +71,6 @@ export default function MenuGroup({
         </MotiView>
       </Pressable>
 
-      {/* Sub-links */}
       <AnimatePresence>
         {isExpanded && (
           <MotiView
@@ -102,17 +98,27 @@ export default function MenuGroup({
                     type: "timing",
                     duration: 220,
                     easing: Easing.out(Easing.cubic),
-                    delay: i * 60, // stagger
+                    delay: i * 60,
                   }}
                   style={{ alignSelf: "flex-end" }}
                 >
                   <Pressable onPress={() => handleLinkPress(link)} hitSlop={6}>
-                    <Text
-                      style={[styles.link, isSelected && styles.linkSelected]}
-                      numberOfLines={1}
-                    >
-                      {link.title}
-                    </Text>
+                    <View style={styles.linkContainer}>
+                      {link.icon && (
+                        <Ionicons
+                          name={link.icon as any}
+                          size={16}
+                          color={isSelected ? "#FFECCC" : "#CBBCA4"}
+                          style={styles.linkIcon}
+                        />
+                      )}
+                      <Text
+                        style={[styles.link, isSelected && styles.linkSelected]}
+                        numberOfLines={1}
+                      >
+                        {link.title}
+                      </Text>
+                    </View>
                   </Pressable>
                 </MotiView>
               );
@@ -147,6 +153,14 @@ const styles = StyleSheet.create({
     alignSelf: "flex-end",
     alignItems: "flex-end",
     width: "auto",
+  },
+  linkContainer: {
+    flexDirection: "row-reverse", // This reverses the order, putting icon on the right
+    alignItems: "center",
+    justifyContent: "flex-start", // Since we're using row-reverse, flex-start aligns to the right
+  },
+  linkIcon: {
+    marginLeft: 6, // Keep marginLeft since row-reverse flips the layout
   },
   link: {
     fontSize: 16,

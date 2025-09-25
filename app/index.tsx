@@ -1,7 +1,7 @@
 import MenuGroup from "@/components/MenuGroup";
 import Moon from "@/components/Moon";
 import useCrossfadeAudio from "@/hooks/useCrossfadeAudio";
-import { MotiView } from "moti";
+import { MotiImage, MotiView } from "moti";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
@@ -23,6 +23,7 @@ import {
 
 import { CormorantGaramond_700Bold } from "@expo-google-fonts/cormorant-garamond";
 import { useFonts } from "expo-font";
+import { Easing } from "react-native-reanimated";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -61,6 +62,10 @@ function HomeInner() {
   const [openMenu, setOpenMenu] = useState<
     "Modes" | "Credits" | "Donate" | "Settings" | "About" | null
   >(null);
+  useEffect(() => {
+    const t = setTimeout(() => setSubscribeOpen(true), 800);
+    return () => clearTimeout(t);
+  }, []);
 
   const IDLE_MS = 8000;
   const [hudVisible, setHudVisible] = useState(false);
@@ -70,7 +75,6 @@ function HomeInner() {
   const { requestOnce } = useMoonLocationCtx();
   const [titleLockedOff, setTitleLockedOff] = useState(false);
 
-  // Audio hook - simplified
   const { version, setVersion, isReady } = useCrossfadeAudio(
     AUDIO_URLS,
     "full",
@@ -81,7 +85,6 @@ function HomeInner() {
     }
   );
 
-  // Share app function
   async function shareApp() {
     try {
       const url =
@@ -168,6 +171,21 @@ function HomeInner() {
       edges={["left", "right", "top"]}
       onTouchStart={handleAnyTouch}
     >
+      <MotiImage
+        source={require("@/assets/images/moonrise_backdrop_block.png")}
+        style={styles.starsBackground}
+        resizeMode="cover"
+        from={{ opacity: 0.65 }}
+        animate={{
+          opacity: [1, 0.7, 1, 0.5, 1],
+        }}
+        transition={{
+          type: "timing",
+          duration: 1500,
+          loop: true,
+          easing: Easing.inOut(Easing.quad),
+        }}
+      />
       {openMenu && (
         <Pressable
           style={[StyleSheet.absoluteFill, styles.clickAway]}
@@ -210,12 +228,8 @@ function HomeInner() {
                 newVersion = title.toLowerCase() as Version;
               }
 
-              console.log("Menu clicked:", title, "->", newVersion);
-              console.log("Current version before:", version);
-
               setVersion(newVersion);
 
-              console.log("setVersion called with:", newVersion);
               kickIdle();
             }}
             closeOnLinkPress={false}
@@ -261,16 +275,12 @@ function HomeInner() {
                 title: "Share location for correct moon phase",
                 action: "use-location",
               },
-              { title: "Subscribe to newsletter" },
             ]}
             isExpanded
             onToggle={closeAll}
             onSubPress={async (_title, link) => {
               if (link?.action === "use-location") {
                 await requestOnce();
-              }
-              if (_title === "Subscribe to newsletter") {
-                setSubscribeOpen(true);
               }
             }}
           />
@@ -316,11 +326,17 @@ function HomeInner() {
         {openMenu === "About" && (
           <MenuGroup
             label="About"
-            links={[{ title: "Share Moonrise", url: undefined }]}
+            links={[
+              {
+                title: "",
+                icon: "share-outline",
+                url: undefined,
+              },
+            ]}
             isExpanded
             onToggle={closeAll}
             onSubPress={(title) => {
-              if (title === "Share Moonrise") {
+              if (title === "") {
                 shareApp();
               }
             }}
@@ -362,15 +378,7 @@ function HomeInner() {
           animate={{ opacity: hideMoon ? 0 : 1 }}
           transition={{ type: "timing", duration: 500 }}
         >
-          <Moon
-            size={260}
-            startScale={1}
-            endScale={0.35}
-            endYOffset={-80}
-            tintColor="#e37a2e"
-            tintOpacity={0.6}
-            fadeTintOutAtEnd
-          />
+          <Moon size={260} startScale={1} endScale={0.35} endYOffset={-80} />
         </MotiView>
       </View>
 
@@ -422,5 +430,16 @@ const styles = StyleSheet.create({
     color: "#D4C7B0",
     marginTop: 4,
     fontFamily: "Spectral_400Regular",
+  },
+  starsBackground: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: "100%",
+    height: "100%",
+    zIndex: -1, // Ensures it stays behind everything
+    opacity: 0.6, // Adjust opacity as needed
   },
 });
