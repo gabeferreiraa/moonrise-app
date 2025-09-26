@@ -4,7 +4,7 @@
     "slug": "moonrise-meditation",
     "version": "1.0.42",
     "orientation": "portrait",
-    "icon": "./assets/images/moonrise_icon.png",
+    "icon": "./assets/images/moonrise_logo.png",
     "scheme": "moonriseapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -39,17 +39,17 @@
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/moonrise_icon.png"
+      "favicon": "./assets/images/moonrise_logo.png"
     },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/moonrise_icon.png",
+          "image": "./assets/images/moonrise_logo.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#090B0C"
         }
       ],
       "expo-font",

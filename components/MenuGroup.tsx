@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons"; // Add this import
+import { Ionicons } from "@expo/vector-icons";
 import { AnimatePresence, MotiView } from "moti";
 import {
   LayoutAnimation,
@@ -13,7 +13,7 @@ import { Easing } from "react-native-reanimated";
 export type Link = {
   title: string;
   url?: string;
-  action?: "use-location";
+  action?: string;
   icon?: string;
 };
 
@@ -22,17 +22,21 @@ export default function MenuGroup({
   links,
   isExpanded,
   onToggle,
-  selectedSubId,
+  selectedSubId, // Keep for backwards compatibility
+  selectedSubIds, // New prop for multiple selections
   onSubPress,
   closeOnLinkPress = true,
+  specialColors = {}, // New prop for special colors
 }: {
   label: string;
   links: Link[];
   isExpanded: boolean;
   onToggle: () => void;
-  selectedSubId?: string | null;
+  selectedSubId?: string | null; // Keep for backwards compatibility
+  selectedSubIds?: string[]; // New prop for multiple selections
   onSubPress?: (title?: string, link?: Link) => void;
   closeOnLinkPress?: boolean;
+  specialColors?: Record<string, string>; // New prop for special colors
 }) {
   const handleLinkPress = async (link: Link) => {
     if (link.url) {
@@ -47,6 +51,23 @@ export default function MenuGroup({
   const labelStyle = isExpanded
     ? [styles.label, styles.selectedLabel]
     : styles.label;
+
+  const isItemSelected = (id: string) => {
+    if (selectedSubIds) {
+      return selectedSubIds.includes(id);
+    }
+    return selectedSubId === id;
+  };
+
+  const getItemColor = (id: string, isSelected: boolean) => {
+    if (specialColors[id]) {
+      if (id === "Modes:Guided" && isSelected) {
+        return "#D8F0DD";
+      }
+      return specialColors[id];
+    }
+    return isSelected ? "#FFECCC" : "#CBBCA4";
+  };
 
   return (
     <View style={styles.group}>
@@ -86,7 +107,8 @@ export default function MenuGroup({
           >
             {links.map((link, i) => {
               const id = `${label}:${link.title}`;
-              const isSelected = selectedSubId === id;
+              const isSelected = isItemSelected(id);
+              const itemColor = getItemColor(id, isSelected);
 
               return (
                 <MotiView
@@ -108,12 +130,16 @@ export default function MenuGroup({
                         <Ionicons
                           name={link.icon as any}
                           size={16}
-                          color={isSelected ? "#FFECCC" : "#CBBCA4"}
+                          color={itemColor}
                           style={styles.linkIcon}
                         />
                       )}
                       <Text
-                        style={[styles.link, isSelected && styles.linkSelected]}
+                        style={[
+                          styles.link,
+                          { color: itemColor },
+                          isSelected && styles.linkSelected,
+                        ]}
                         numberOfLines={1}
                       >
                         {link.title}
@@ -155,23 +181,21 @@ const styles = StyleSheet.create({
     width: "auto",
   },
   linkContainer: {
-    flexDirection: "row-reverse", // This reverses the order, putting icon on the right
+    flexDirection: "row-reverse",
     alignItems: "center",
-    justifyContent: "flex-start", // Since we're using row-reverse, flex-start aligns to the right
+    justifyContent: "flex-start",
   },
   linkIcon: {
-    marginLeft: 6, // Keep marginLeft since row-reverse flips the layout
+    marginLeft: 6,
   },
   link: {
     fontSize: 16,
-    color: "#CBBCA4",
     paddingLeft: 10,
     paddingTop: 4,
     fontFamily: "Lora_400Regular",
     textAlign: "right",
   },
   linkSelected: {
-    color: "#FFECCC",
     fontWeight: "condensed",
   },
 });

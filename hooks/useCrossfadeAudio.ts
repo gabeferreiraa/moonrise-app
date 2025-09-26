@@ -1,13 +1,7 @@
 import { Audio } from "expo-av";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-export type Version =
-  | "guided"
-  | "birth"
-  | "life"
-  | "death"
-  | "full"
-  | "deathBeNotProud";
+export type Version = "guided" | "birth" | "life" | "death" | "full";
 
 type Options = {
   fadeMs?: number;

@@ -1,6 +1,7 @@
 import MenuGroup from "@/components/MenuGroup";
 import Moon from "@/components/Moon";
 import useCrossfadeAudio from "@/hooks/useCrossfadeAudio";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { MotiImage, MotiView } from "moti";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -13,7 +14,6 @@ import {
   StyleSheet,
   Text,
   UIManager,
-  View,
 } from "react-native";
 import { SubscribeModal } from "../components/SubscribeModal";
 import {
@@ -29,26 +29,22 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 
-type Version =
-  | "guided"
-  | "birth"
-  | "life"
-  | "death"
-  | "full"
-  | "deathBeNotProud";
+// Updated type - removed deathBeNotProud
+type Version = "guided" | "birth" | "life" | "death" | "full";
 
+// Updated AUDIO_URLS - removed deathBeNotProud
 const AUDIO_URLS: Record<Version, string> = {
   guided:
-    "https://firebasestorage.googleapis.com/v0/b/moonrise001-5aa1c.firebasestorage.app/o/Moonrise_Invocation%20Stereo%20Printmaster_202050726.mp3?alt=media&token=bb04902e-9d6b-4edc-8634-4b64f16651b7",
+    "https://firebasestorage.googleapis.com/v0/b/moonrise001-5aa1c.firebasestorage.app/o/Moonrise_Full_Guided.mp3?alt=media&token=839c5411-b3c5-4057-83df-319046ee9c23",
   life: "https://firebasestorage.googleapis.com/v0/b/moonrise001-5aa1c.firebasestorage.app/o/Moonrise_Life%20Stereo%20Printmaster_202050725.mp3?alt=media&token=ad2a909b-16c9-4220-b23e-f33a40b3ba81",
   birth:
     "https://firebasestorage.googleapis.com/v0/b/moonrise001-5aa1c.firebasestorage.app/o/Moonrise_Birth%20with%20Invocation%20Stereo%20Printmaster_202050725.mp3?alt=media&token=90cdf52b-3047-4386-b1fd-cf9d893ed4a4",
   death:
     "https://firebasestorage.googleapis.com/v0/b/moonrise001-5aa1c.firebasestorage.app/o/Moonrise_Death%20Stereo%20Printmaster_202050725.mp3?alt=media&token=8d601f5e-b894-4cbd-9131-de0cefcca58b",
-  full: "https://firebasestorage.googleapis.com/v0/b/moonrise001-5aa1c.firebasestorage.app/o/Moonrise_Full%20Album%20Stereo%20Printmaster_202050725.mp3?alt=media&token=8107d004-0733-4ee7-8c64-28feffd96c66",
-  deathBeNotProud:
-    "https://firebasestorage.googleapis.com/v0/b/moonrise001-5aa1c.firebasestorage.app/o/Moonrise_Death%20No%20Poem%20Outro_Stereo%20Printmaster_202050726.mp3?alt=media&token=3e18c536-b830-4185-a07e-a56f6604d04c",
+  full: "https://firebasestorage.googleapis.com/v0/b/moonrise001-5aa1c.firebasestorage.app/o/Moonrise_Full_Unguided.mp3?alt=media&token=99a9fbe1-2122-44b7-8c53-8d946e4312d6",
 };
+
+const FIRST_LAUNCH_KEY = "@moonrise_first_launch";
 
 export default function HomeScreen() {
   return (
@@ -62,28 +58,55 @@ function HomeInner() {
   const [openMenu, setOpenMenu] = useState<
     "Modes" | "Credits" | "Donate" | "Settings" | "About" | null
   >(null);
-  useEffect(() => {
-    const t = setTimeout(() => setSubscribeOpen(true), 800);
-    return () => clearTimeout(t);
-  }, []);
 
   const IDLE_MS = 8000;
   const [hudVisible, setHudVisible] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [menuActive, setMenuActive] = useState(true); // New state for menu activity
   const [aboutEnabled, setAboutEnabled] = useState(false);
   const [subscribeOpen, setSubscribeOpen] = useState(false);
-  const { requestOnce } = useMoonLocationCtx();
+  const [isFirstLaunch, setIsFirstLaunch] = useState(false);
+  const { requestOnce, isNewMoon, moonPhase } = useMoonLocationCtx(); // Added moon phase data
   const [titleLockedOff, setTitleLockedOff] = useState(false);
 
+  const [guidedEnabled, setGuidedEnabled] = useState(true); // Default to true (both Full+Guided selected)
+
+  // Initialize audio with guided version since both are selected by default
   const { version, setVersion, isReady } = useCrossfadeAudio(
     AUDIO_URLS,
-    "full",
+    "guided", // Start with guided since both Full+Guided are selected
     {
       fadeMs: 1000,
       loop: true,
       autoStart: true,
     }
   );
+
+  useEffect(() => {
+    const checkFirstLaunch = async () => {
+      try {
+        const hasLaunchedBefore = await AsyncStorage.getItem(FIRST_LAUNCH_KEY);
+        if (hasLaunchedBefore === null) {
+          // First launch
+          setIsFirstLaunch(true);
+          await AsyncStorage.setItem(FIRST_LAUNCH_KEY, "true");
+          const timer = setTimeout(() => {
+            setSubscribeOpen(true);
+          }, 800);
+          return () => clearTimeout(timer);
+        }
+      } catch (error) {
+        console.error("Error checking first launch:", error);
+      }
+    };
+
+    checkFirstLaunch();
+  }, []);
+
+  // Log moon phase for debugging (remove in production)
+  useEffect(() => {
+    console.log(`Current moon phase: ${moonPhase}, isNewMoon: ${isNewMoon}`);
+  }, [moonPhase, isNewMoon]);
 
   async function shareApp() {
     try {
@@ -102,13 +125,67 @@ function HomeInner() {
     }
   }
 
+  const getSelectedModes = () => {
+    if (version === "birth" || version === "life" || version === "death") {
+      return [version]; // Only the specific mode is selected
+    }
+
+    // For guided/full modes, both Full and Guided/Unguided are selected
+    if (guidedEnabled) {
+      return ["full", "guided"]; // Both Full and Guided are selected
+    } else {
+      return ["full", "unguided"]; // Both Full and Unguided are selected
+    }
+  };
+
+  const selectedModes = getSelectedModes();
+
+  const handleModePress = (title?: string, link?: any) => {
+    if (!title) return; // Guard clause for undefined title
+    const mode = title.toLowerCase() as Version | "unguided";
+
+    if (mode === "guided" || mode === "unguided") {
+      // Toggle guided mode (Full stays active)
+      const newGuidedEnabled = !guidedEnabled;
+      setGuidedEnabled(newGuidedEnabled);
+
+      if (newGuidedEnabled) {
+        // Turn on guided mode - play guided version
+        setVersion("guided");
+      } else {
+        // Turn off guided mode - play full version
+        setVersion("full");
+      }
+    } else if (mode === "full") {
+      // Clicking Full doesn't change anything if we're already in full/guided modes
+      // Full is always the base, so this is essentially a no-op
+      if (version === "birth" || version === "life" || version === "death") {
+        // If coming from Birth/Life/Death, return to guided full by default
+        setGuidedEnabled(true);
+        setVersion("guided");
+      }
+      // If already in full/guided modes, do nothing
+    } else {
+      // Birth, Life, Death modes - these turn off Full
+      setGuidedEnabled(false);
+      setVersion(mode as Version);
+    }
+
+    kickIdle();
+  };
+
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const kickIdle = () => {
     setHudVisible(true);
+    setMenuActive(true); // Set menu as active when user interacts
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     idleTimerRef.current = setTimeout(() => {
       setHudVisible(false);
-      setShowMenu(false);
+      // Only fade menus that aren't expanded
+      if (!openMenu) {
+        setShowMenu(false);
+      }
+      setMenuActive(false); // Set menu as inactive after idle
       setAboutEnabled(true);
       setTitleLockedOff(true);
     }, IDLE_MS);
@@ -165,28 +242,48 @@ function HomeInner() {
   const hideMoon = isAboutOpen;
   const showTitle = isAboutOpen || (!titleLockedOff && hudVisible);
 
+  // Determine menu opacity based on whether it's active or idle
+  // If there's an open menu, keep it visible but fade when inactive
+  // If no open menu, fade completely based on showMenu
+  const getMenuOpacity = () => {
+    if (openMenu) {
+      // If menu is expanded, fade to 0 when inactive
+      return menuActive ? 1 : 0;
+    } else {
+      // If no menu is expanded, use normal show/hide logic
+      return showMenu ? 1 : 0;
+    }
+  };
+
+  const menuOpacity = getMenuOpacity();
+  const menuPointerEvents = openMenu || showMenu ? "auto" : "none";
+
   return (
     <SafeAreaView
       style={styles.container}
       edges={["left", "right", "top"]}
       onTouchStart={handleAnyTouch}
     >
-      <MotiImage
-        source={require("@/assets/images/moonrise_backdrop_block.png")}
-        style={styles.starsBackground}
-        resizeMode="cover"
-        from={{ opacity: 0.65 }}
-        animate={{
-          opacity: [1, 0.7, 1, 0.5, 1],
-        }}
-        transition={{
-          type: "timing",
-          duration: 1500,
-          loop: true,
-          easing: Easing.inOut(Easing.quad),
-        }}
-      />
-      {openMenu && (
+      {/* Only show stars background during new moon */}
+      {isNewMoon && (
+        <MotiImage
+          source={require("@/assets/images/moonrise_backdrop_block.png")}
+          style={styles.starsBackground}
+          resizeMode="cover"
+          from={{ opacity: 0.65 }}
+          animate={{
+            opacity: [1, 0.7, 1, 0.5, 1],
+          }}
+          transition={{
+            type: "timing",
+            duration: 1500,
+            loop: true,
+            easing: Easing.inOut(Easing.quad),
+          }}
+        />
+      )}
+
+      {openMenu && menuActive && (
         <Pressable
           style={[StyleSheet.absoluteFill, styles.clickAway]}
           onPress={closeAll}
@@ -194,45 +291,44 @@ function HomeInner() {
         />
       )}
 
+      {/* Invisible overlay to capture touches when menu is open but faded out */}
+      {openMenu && !menuActive && (
+        <Pressable
+          style={[StyleSheet.absoluteFill, styles.clickAway]}
+          onPress={() => {
+            // Just reactivate the menu, don't close it
+            kickIdle();
+          }}
+        />
+      )}
+
       <MotiView
         from={{ opacity: 0 }}
-        animate={{ opacity: showMenu || !!openMenu ? 1 : 0 }}
+        animate={{ opacity: menuOpacity }}
         transition={{ type: "timing", duration: 700 }}
         style={styles.menu}
-        pointerEvents={showMenu || !!openMenu ? "auto" : "none"}
+        pointerEvents={menuPointerEvents}
+        onTouchStart={handleAnyTouch}
       >
         {openMenu === "Modes" && (
           <MenuGroup
             label="Modes"
             links={[
-              { title: "Guided" },
+              { title: guidedEnabled ? "Guided" : "Unguided" },
+              { title: "Full" },
               { title: "Birth" },
               { title: "Life" },
               { title: "Death" },
-              { title: "Full" },
-              { title: "Death - Be Not Proud" },
             ]}
             isExpanded
             onToggle={closeAll}
-            selectedSubId={`Modes:${
-              version === "deathBeNotProud"
-                ? "Death - Be Not Proud"
-                : cap(version)
-            }`}
-            onSubPress={(title) => {
-              let newVersion: Version;
-
-              if (title === "Death - Be Not Proud") {
-                newVersion = "deathBeNotProud";
-              } else {
-                newVersion = title.toLowerCase() as Version;
-              }
-
-              setVersion(newVersion);
-
-              kickIdle();
-            }}
+            selectedSubIds={selectedModes.map((mode) => `Modes:${cap(mode)}`)}
+            onSubPress={handleModePress}
             closeOnLinkPress={false}
+            specialColors={{
+              "Modes:Guided": "#A0B5A8",
+              "Modes:Unguided": "#A0B5A8",
+            }}
           />
         )}
 
@@ -240,10 +336,10 @@ function HomeInner() {
           <MenuGroup
             label="Credits"
             links={[
-              { title: "Alchemy crystal singing bowls – Deva Munay" },
+              { title: "Alchemy crystal singing bowls — Deva Munay" },
               { title: "Produced by Jeff Bhasker" },
               { title: "Recorded by Greg Morgenstein" },
-              { title: "Death Be Not Proud – recited by Penny" },
+              { title: "Death Be Not Proud — recited by Penny" },
               { title: "Recorded at Ft. Sufi Big Sur 2024" },
               { title: "Hear360" },
             ]}
@@ -275,12 +371,18 @@ function HomeInner() {
                 title: "Share location for correct moon phase",
                 action: "use-location",
               },
+              {
+                title: "Subscribe to newsletter",
+                action: "subscribe-newsletter",
+              },
             ]}
             isExpanded
             onToggle={closeAll}
             onSubPress={async (_title, link) => {
               if (link?.action === "use-location") {
                 await requestOnce();
+              } else if (link?.action === "subscribe-newsletter") {
+                setSubscribeOpen(true);
               }
             }}
           />
@@ -362,7 +464,10 @@ function HomeInner() {
         <Text style={styles.subtitle}>Deva Munay</Text>
       </MotiView>
 
-      <View
+      <MotiView
+        from={{ opacity: 0 }}
+        animate={{ opacity: hideMoon ? 0 : 1 }}
+        transition={{ type: "timing", duration: 1200, delay: 300 }}
         onTouchStart={handleAnyTouch}
         style={{
           position: "absolute",
@@ -373,14 +478,8 @@ function HomeInner() {
           pointerEvents: hideMoon ? "none" : "auto",
         }}
       >
-        <MotiView
-          from={{ opacity: 1 }}
-          animate={{ opacity: hideMoon ? 0 : 1 }}
-          transition={{ type: "timing", duration: 500 }}
-        >
-          <Moon size={260} startScale={1} endScale={0.35} endYOffset={-80} />
-        </MotiView>
-      </View>
+        <Moon size={260} startScale={1} endScale={0.35} endYOffset={-80} />
+      </MotiView>
 
       <SubscribeModal
         visible={subscribeOpen}
@@ -433,13 +532,13 @@ const styles = StyleSheet.create({
   },
   starsBackground: {
     position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    width: "100%",
-    height: "100%",
-    zIndex: -1, // Ensures it stays behind everything
-    opacity: 0.6, // Adjust opacity as needed
+    top: -50, // Extend beyond screen
+    left: -50,
+    right: -50,
+    bottom: -50,
+    width: Dimensions.get("window").width + 100,
+    height: Dimensions.get("window").height + 100,
+    zIndex: -1,
+    opacity: 0.6,
   },
 });
