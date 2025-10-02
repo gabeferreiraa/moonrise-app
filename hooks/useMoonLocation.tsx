@@ -1,120 +1,70 @@
-import React, {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import * as Location from "expo-location";
 
+/** Types */
 export type Hemisphere = "north" | "south";
 export type MoonPhase =
   | "new"
-  | "waxing_crescent"
-  | "first_quarter"
-  | "waxing_gibbous"
+  | "waxing-crescent"
+  | "first-quarter"
+  | "waxing-gibbous"
   | "full"
-  | "waning_gibbous"
-  | "last_quarter"
-  | "waning_crescent";
+  | "waning-gibbous"
+  | "last-quarter"
+  | "waning-crescent";
 
-// Use the EXACT same calculation as Moon.tsx component
-function calculateMoonPhase(date: Date = new Date()): {
-  phase: MoonPhase;
-  illumination: number;
-} {
-  const synodic = 29.530588853;
-  const knownNewMoon = new Date(Date.UTC(2000, 0, 6, 18, 14));
+type MoonLocation = {
+  /** Last known coordinates, if permission granted */
+  coords?: { latitude: number; longitude: number } | null;
+  /** Hemisphere guess based on latitude (>=0 -> north) */
+  hemisphere: Hemisphere;
+  /** Whether we have location permission */
+  permission: Location.PermissionStatus | "unknown";
+  /** Request permission (lazy; never auto-requests on mount) */
+  requestPermission: () => Promise<Location.PermissionStatus>;
+  /** Clear coords (privacy-friendly) */
+  clear: () => void;
+};
 
-  // Use local time, same as Moon.tsx
-  const days =
-    (date.getTime() - knownNewMoon.getTime()) / (1000 * 60 * 60 * 24);
-  const lunations = (days / synodic) % 1;
-  const frac = (lunations + 1) % 1;
+const MoonLocationCtx = createContext<MoonLocation | null>(null);
 
-  // Calculate illumination (0 = new moon, 0.5 = full moon)
-  let illumination: number;
-  if (frac <= 0.5) {
-    illumination = frac * 2;
-  } else {
-    illumination = 2 - frac * 2;
-  }
-
-  // Determine phase name using same logic as Moon component
-  const phaseIndex = Math.floor(frac * 8 + 0.5) % 8;
-  const indexToPhase: MoonPhase[] = [
-    "new",
-    "waxing_crescent",
-    "first_quarter",
-    "waxing_gibbous",
-    "full",
-    "waning_gibbous",
-    "last_quarter",
-    "waning_crescent",
-  ];
-
-  return {
-    phase: indexToPhase[phaseIndex],
-    illumination,
-  };
+/** Basic hemisphere inference */
+function inferHemisphere(lat?: number | null): Hemisphere {
+  if (typeof lat !== "number") return "north";
+  return lat >= 0 ? "north" : "south";
 }
 
-export function useMoonLocation() {
-  // Start with northern hemisphere by default
-  const [hemisphere, setHemisphere] = useState<Hemisphere>("north");
+/** Provider */
+export function MoonLocationProvider({ children }: { children: React.ReactNode }) {
+  const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [permission, setPermission] = useState<Location.PermissionStatus | "unknown">("unknown");
 
-  const [moonPhaseData, setMoonPhaseData] = useState(() =>
-    calculateMoonPhase()
-  );
-
-  // Update moon phase every hour
-  useEffect(() => {
-    const updateMoonPhase = () => {
-      setMoonPhaseData(calculateMoonPhase());
-    };
-
-    // Update immediately
-    updateMoonPhase();
-
-    // Update every hour
-    const interval = setInterval(updateMoonPhase, 60 * 60 * 1000);
-
-    return () => clearInterval(interval);
+  // Lazy permission request
+  const requestPermission = useCallback(async () => {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    setPermission(status);
+    if (status === Location.PermissionStatus.GRANTED) {
+      const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      setCoords({ latitude: current.coords.latitude, longitude: current.coords.longitude });
+    }
+    return status;
   }, []);
 
-  const isNewMoon = useMemo(
-    () => moonPhaseData.phase === "new",
-    [moonPhaseData.phase]
-  );
-
-  // Toggle between north and south
-  const toggleHemisphere = useCallback(() => {
-    setHemisphere((prev) => (prev === "north" ? "south" : "north"));
+  const clear = useCallback(() => {
+    setCoords(null);
   }, []);
 
-  return {
+  const hemisphere = useMemo(() => inferHemisphere(coords?.latitude ?? null), [coords?.latitude]);
+
+  const value = useMemo<MoonLocation>(() => ({
+    coords,
     hemisphere,
-    moonPhase: moonPhaseData.phase,
-    moonIllumination: moonPhaseData.illumination,
-    isNewMoon,
-    toggleHemisphere,
-  };
-}
+    permission,
+    requestPermission,
+    clear,
+  }), [coords, hemisphere, permission, requestPermission, clear]);
 
-type Ctx = ReturnType<typeof useMoonLocation>;
-const MoonLocationCtx = createContext<Ctx | null>(null);
-
-export function MoonLocationProvider({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const value = useMoonLocation();
-  return (
-    <MoonLocationCtx.Provider value={value}>
-      {children}
-    </MoonLocationCtx.Provider>
-  );
+  return <MoonLocationCtx.Provider value={value}>{children}</MoonLocationCtx.Provider>;
 }
 
 export function useMoonLocationCtx() {

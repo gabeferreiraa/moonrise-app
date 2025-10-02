@@ -11,7 +11,7 @@ type Options = {
 
 type TrackState = {
   sound: Audio.Sound;
-  savedPosition: number; // Position in milliseconds
+  savedPosition: number;
   hasBeenPlayed: boolean;
 };
 
@@ -30,7 +30,6 @@ export default function useCrossfadeAudio(
   const isTransitioningRef = useRef(false);
   const fadeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Track the sync position for guided/full pair
   const guidedFullPositionRef = useRef<number>(0);
   const positionTrackerRef = useRef<ReturnType<typeof setInterval> | null>(
     null
@@ -55,7 +54,6 @@ export default function useCrossfadeAudio(
           shouldDuckAndroid: true,
         });
 
-        // Load all tracks
         const allVersions = Object.keys(urls) as Version[];
 
         await Promise.all(
