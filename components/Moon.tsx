@@ -29,18 +29,18 @@ type Props = {
   style?: ViewStyle;
 
   /** Animation controls */
-  glideMs?: number; // default 60_000 (1 minute)
-  startAnimation?: boolean; // default true
+  glideMs?: number;
+  startAnimation?: boolean;
 
-  /** NEW: simple controls to match website behavior */
-  startScale?: number; // default 1
+  /** Simple controls to match website behavior */
+  startScale?: number;
   endScale?: number;
   endYOffset?: number;
+
   /** Tint controls */
   tintColor?: string;
   tintOpacity?: number;
-
-  fadeTintOutAtEnd?: boolean; // <- add this
+  fadeTintOutAtEnd?: boolean;
 };
 
 const phaseToImage: Record<MoonPhase, ImageSourcePropType> = {
@@ -54,13 +54,24 @@ const phaseToImage: Record<MoonPhase, ImageSourcePropType> = {
   "waning-crescent": require("@/assets/images/output/moon_waning_crescent.png"),
 };
 
+// FIXED: Use October 7, 2025 full moon as reference
 function phaseIndexFromDate(d: Date): number {
-  const synodic = 29.530588853;
-  const knownNewMoon = new Date(Date.UTC(2000, 0, 6, 18, 14));
-  const days = (d.getTime() - knownNewMoon.getTime()) / (1000 * 60 * 60 * 24);
-  const lunations = (days / synodic) % 1;
-  const frac = (lunations + 1) % 1;
-  return Math.floor(frac * 8 + 0.5) % 8;
+  // Known full moon: October 7, 2025 at 03:48 UTC
+  const knownFullMoon = new Date("2025-10-07T03:48:00Z");
+  const lunarCycle = 29.53058867;
+
+  const daysFromFullMoon =
+    (d.getTime() - knownFullMoon.getTime()) / (1000 * 60 * 60 * 24);
+
+  // Calculate position in cycle relative to full moon (full moon = 0.5 in cycle)
+  let cyclePosition = daysFromFullMoon / lunarCycle + 0.5;
+
+  // Normalize to 0-1 range
+  cyclePosition = cyclePosition - Math.floor(cyclePosition);
+  if (cyclePosition < 0) cyclePosition += 1;
+
+  // Convert to phase index (0-7)
+  return Math.floor(cyclePosition * 8 + 0.5) % 8;
 }
 
 const indexToPhase: MoonPhase[] = [
@@ -84,10 +95,9 @@ export default function Moon({
   glideMs = 600_000,
   startAnimation = true,
 
-  // NEW defaults to match your site
   startScale = 1,
   endScale = 0.35,
-  endYOffset = -80, // negative = move up
+  endYOffset = -80,
 
   tintColor = "#e37a2e",
   tintOpacity = 0.25,
@@ -111,10 +121,6 @@ export default function Moon({
     }
   }, [startAnimation]);
 
-  // if (resolvedPhase === "new") {
-  //   return null;
-  // }
-
   const screenH = Dimensions.get("window").height;
   const startY = screenH * 0.65;
   const endY = endYOffset;
@@ -124,7 +130,7 @@ export default function Moon({
       from={{ opacity: 1, scale: startScale, translateY: startY }}
       animate={{
         opacity: 1,
-        scale: hasStarted ? endScale : startScale, // 1 → 0.55
+        scale: hasStarted ? endScale : startScale,
         translateY: hasStarted ? endY : startY,
       }}
       transition={{

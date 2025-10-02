@@ -1,14 +1,11 @@
-import * as Location from "expo-location";
 import React, {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
-  useEffect,
 } from "react";
-
-const BIG_SUR = { latitude: 36.2704, longitude: -121.8081 };
 
 export type Hemisphere = "north" | "south";
 export type MoonPhase =
@@ -20,58 +17,52 @@ export type MoonPhase =
   | "waning_gibbous"
   | "last_quarter"
   | "waning_crescent";
-type PermissionState = "undetermined" | "granted" | "denied";
 
-// Calculate moon phase based on date
+// Use the EXACT same calculation as Moon.tsx component
 function calculateMoonPhase(date: Date = new Date()): {
   phase: MoonPhase;
   illumination: number;
 } {
-  // Known new moon reference: January 21, 2023 20:53 UTC
-  const knownNewMoon = new Date("2023-01-21T20:53:00.000Z");
-  const lunarCycle = 29.53058867; // Average lunar cycle in days
+  const synodic = 29.530588853;
+  const knownNewMoon = new Date(Date.UTC(2000, 0, 6, 18, 14));
 
-  const daysSinceKnownNewMoon =
+  // Use local time, same as Moon.tsx
+  const days =
     (date.getTime() - knownNewMoon.getTime()) / (1000 * 60 * 60 * 24);
-  const currentCycle = daysSinceKnownNewMoon / lunarCycle;
-  const phase = currentCycle - Math.floor(currentCycle);
+  const lunations = (days / synodic) % 1;
+  const frac = (lunations + 1) % 1;
 
-  // Calculate illumination percentage (0 = new moon, 0.5 = full moon)
+  // Calculate illumination (0 = new moon, 0.5 = full moon)
   let illumination: number;
-  if (phase <= 0.5) {
-    illumination = phase * 2; // 0 to 1
+  if (frac <= 0.5) {
+    illumination = frac * 2;
   } else {
-    illumination = 2 - phase * 2; // 1 to 0
+    illumination = 2 - frac * 2;
   }
 
-  // Determine phase name
-  let phaseName: MoonPhase;
-  if (phase < 0.033 || phase > 0.967) {
-    phaseName = "new";
-  } else if (phase < 0.216) {
-    phaseName = "waxing_crescent";
-  } else if (phase < 0.284) {
-    phaseName = "first_quarter";
-  } else if (phase < 0.466) {
-    phaseName = "waxing_gibbous";
-  } else if (phase < 0.533) {
-    phaseName = "full";
-  } else if (phase < 0.716) {
-    phaseName = "waning_gibbous";
-  } else if (phase < 0.784) {
-    phaseName = "last_quarter";
-  } else {
-    phaseName = "waning_crescent";
-  }
+  // Determine phase name using same logic as Moon component
+  const phaseIndex = Math.floor(frac * 8 + 0.5) % 8;
+  const indexToPhase: MoonPhase[] = [
+    "new",
+    "waxing_crescent",
+    "first_quarter",
+    "waxing_gibbous",
+    "full",
+    "waning_gibbous",
+    "last_quarter",
+    "waning_crescent",
+  ];
 
-  return { phase: phaseName, illumination };
+  return {
+    phase: indexToPhase[phaseIndex],
+    illumination,
+  };
 }
 
 export function useMoonLocation() {
-  const [coords, setCoords] = useState(BIG_SUR);
-  const [usingDefault, setUsingDefault] = useState(true);
-  const [permission, setPermission] = useState<PermissionState>("undetermined");
-  const [loading, setLoading] = useState(false);
+  // Start with northern hemisphere by default
+  const [hemisphere, setHemisphere] = useState<Hemisphere>("north");
+
   const [moonPhaseData, setMoonPhaseData] = useState(() =>
     calculateMoonPhase()
   );
@@ -91,79 +82,22 @@ export function useMoonLocation() {
     return () => clearInterval(interval);
   }, []);
 
-  // We're foreground-only; keep this for API parity
-  const bgRunning = false;
-
-  const hemisphere: Hemisphere = useMemo(
-    () => (coords.latitude >= 0 ? "north" : "south"),
-    [coords.latitude]
-  );
-
   const isNewMoon = useMemo(
     () => moonPhaseData.phase === "new",
     [moonPhaseData.phase]
   );
 
-  /** Foreground one-shot fetch (Expo Go / expo-location) */
-  const requestOnce = useCallback(async () => {
-    try {
-      setLoading(true);
-
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      const granted = status === Location.PermissionStatus.GRANTED;
-      setPermission(granted ? "granted" : "denied");
-
-      if (!granted) {
-        setUsingDefault(true);
-        return false;
-      }
-
-      const pos = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-        mayShowUserSettingsDialog: true,
-      });
-
-      if (!pos?.coords) throw new Error("Invalid position data");
-
-      setCoords({
-        latitude: pos.coords.latitude,
-        longitude: pos.coords.longitude,
-      });
-      setUsingDefault(false);
-      return true;
-    } catch (e) {
-      console.error("[Location] requestOnce failed:", e);
-      setUsingDefault(true);
-      // If we got here, permission might still be undetermined or denied;
-      // keep whatever we have unless we know it's denied.
-      return false;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  /** No-op stubs to keep your old API intact */
-  const startBackground = useCallback(async () => {
-    // Foreground-only by design
-    return false;
-  }, []);
-  const stopBackground = useCallback(async () => {
-    return false;
+  // Toggle between north and south
+  const toggleHemisphere = useCallback(() => {
+    setHemisphere((prev) => (prev === "north" ? "south" : "north"));
   }, []);
 
   return {
-    coords,
     hemisphere,
-    usingDefault,
-    permission,
-    loading,
-    bgRunning,
     moonPhase: moonPhaseData.phase,
     moonIllumination: moonPhaseData.illumination,
     isNewMoon,
-    requestOnce, // ← call this from your "Use My Location" menu item
-    startBackground, // no-op
-    stopBackground, // no-op
+    toggleHemisphere,
   };
 }
 

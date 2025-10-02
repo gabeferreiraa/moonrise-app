@@ -4,31 +4,28 @@
     "slug": "moonrise-meditation",
     "version": "1.0.42",
     "orientation": "portrait",
-    "icon": "./assets/images/moonrise_logo.png",
+    "icon": "./assets/images/moonrise_final_icon.png",
     "scheme": "moonriseapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+
     "ios": {
       "bundleIdentifier": "com.kravenworks.moonrise",
       "buildNumber": "1.0.1",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSLocationWhenInUseUsageDescription": "This app uses your location to determine which hemisphere you're in for accurate moon phase display.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "This app uses your location to determine which hemisphere you're in for accurate moon phase display.",
-        "NSLocationAlwaysUsageDescription": "This app uses your location to determine which hemisphere you're in for accurate moon phase display.",
-        "UIBackgroundModes": ["audio", "location"]
+        "UIBackgroundModes": ["audio"]
       }
     },
+
     "android": {
       "package": "com.kravenworks.moonrise",
-      "versionCode": 2,
+      "versionCode": 3,
       "edgeToEdgeEnabled": true,
       "permissions": [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
-        "ACCESS_BACKGROUND_LOCATION",
         "FOREGROUND_SERVICE",
-        "FOREGROUND_SERVICE_LOCATION",
         "WAKE_LOCK"
       ],
       "adaptiveIcon": {
@@ -36,17 +33,19 @@
         "backgroundColor": "#ffffff"
       }
     },
+
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/moonrise_logo.png"
+      "favicon": "./assets/images/moonrise_final_icon.png"
     },
+
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/moonrise_logo.png",
+          "image": "./assets/images/moonrise_final_icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#090B0C"
@@ -56,18 +55,19 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location.",
-          "locationWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location.",
-          "isIosBackgroundLocationEnabled": true,
-          "isAndroidBackgroundLocationEnabled": true,
-          "isAndroidForegroundServiceEnabled": true
+          "locationWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location to set your hemisphere.",
+          "isIosBackgroundLocationEnabled": false,
+          "isAndroidBackgroundLocationEnabled": false,
+          "isAndroidForegroundServiceEnabled": false
         }
       ],
       "expo-audio"
     ],
+
     "experiments": {
       "typedRoutes": true
     },
+
     "extra": {
       "router": {},
       "eas": {

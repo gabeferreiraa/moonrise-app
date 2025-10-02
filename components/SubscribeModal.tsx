@@ -35,7 +35,6 @@ export function SubscribeModal({
     setSubmitting(true);
 
     try {
-      // Actually subscribe via Supabase (not fake setTimeout!)
       const result = await newsletterService.subscribe(
         email.trim(),
         name.trim() || undefined
@@ -74,7 +73,7 @@ export function SubscribeModal({
     >
       <View style={m.overlay}>
         <View style={m.card}>
-          <Text style={m.title}>Get event updates</Text>
+          <Text style={m.title}>Join the Moonrise Community</Text>
           <TextInput
             style={m.input}
             placeholder="Name (optional)"
@@ -115,7 +114,7 @@ export function SubscribeModal({
               {submitting ? (
                 <ActivityIndicator size="small" color="#141414" />
               ) : (
-                <Text style={m.btnText}>Subscribe</Text>
+                <Text style={m.btnText}>Join</Text>
               )}
             </Pressable>
           </View>
@@ -140,7 +139,7 @@ const m = StyleSheet.create({
     borderColor: "#2a2a2a",
   },
   title: {
-    color: "#F4F2ED",
+    color: "#F7EBD6",
     fontSize: 18,
     marginBottom: 10,
     fontWeight: "600",
@@ -166,7 +165,7 @@ const m = StyleSheet.create({
     opacity: 0.6,
   },
   btn: {
-    backgroundColor: "#E6D2B5",
+    backgroundColor: "#F7EBD6",
     borderRadius: 999,
     paddingHorizontal: 16,
     paddingVertical: 10,

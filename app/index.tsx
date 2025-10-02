@@ -16,6 +16,7 @@ import {
   UIManager,
 } from "react-native";
 import { SubscribeModal } from "../components/SubscribeModal";
+import { Unsubscribe } from "../components/Unsubscribe";
 import {
   MoonLocationProvider,
   useMoonLocationCtx,
@@ -29,16 +30,14 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 
-// Updated type - removed deathBeNotProud
 type Version = "guided" | "birth" | "life" | "death" | "full";
 
-// Updated AUDIO_URLS - removed deathBeNotProud
 const AUDIO_URLS: Record<Version, string> = {
   guided:
     "https://firebasestorage.googleapis.com/v0/b/moonrise001-5aa1c.firebasestorage.app/o/Moonrise_Full_Guided.mp3?alt=media&token=839c5411-b3c5-4057-83df-319046ee9c23",
   life: "https://firebasestorage.googleapis.com/v0/b/moonrise001-5aa1c.firebasestorage.app/o/Moonrise_Life%20Stereo%20Printmaster_202050725.mp3?alt=media&token=ad2a909b-16c9-4220-b23e-f33a40b3ba81",
   birth:
-    "https://firebasestorage.googleapis.com/v0/b/moonrise001-5aa1c.firebasestorage.app/o/Moonrise_Birth%20with%20Invocation%20Stereo%20Printmaster_202050725.mp3?alt=media&token=90cdf52b-3047-4386-b1fd-cf9d893ed4a4",
+    "https://firebasestorage.googleapis.com/v0/b/moonrise001-5aa1c.firebasestorage.app/o/Moonrise_Birth%20No%20Invocation_%20Stereo%20Printmaster_202050726.mp3?alt=media&token=bd88f0f9-c57d-4f93-bbb3-f103f52f5734",
   death:
     "https://firebasestorage.googleapis.com/v0/b/moonrise001-5aa1c.firebasestorage.app/o/Moonrise_Death%20Stereo%20Printmaster_202050725.mp3?alt=media&token=8d601f5e-b894-4cbd-9131-de0cefcca58b",
   full: "https://firebasestorage.googleapis.com/v0/b/moonrise001-5aa1c.firebasestorage.app/o/Moonrise_Full_Unguided.mp3?alt=media&token=99a9fbe1-2122-44b7-8c53-8d946e4312d6",
@@ -62,19 +61,20 @@ function HomeInner() {
   const IDLE_MS = 8000;
   const [hudVisible, setHudVisible] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
-  const [menuActive, setMenuActive] = useState(true); // New state for menu activity
+  const [menuActive, setMenuActive] = useState(true);
   const [aboutEnabled, setAboutEnabled] = useState(false);
   const [subscribeOpen, setSubscribeOpen] = useState(false);
   const [isFirstLaunch, setIsFirstLaunch] = useState(false);
-  const { requestOnce, isNewMoon, moonPhase } = useMoonLocationCtx(); // Added moon phase data
+
+  const { toggleHemisphere, hemisphere, isNewMoon, moonPhase } =
+    useMoonLocationCtx();
   const [titleLockedOff, setTitleLockedOff] = useState(false);
 
-  const [guidedEnabled, setGuidedEnabled] = useState(true); // Default to true (both Full+Guided selected)
+  const [guidedEnabled, setGuidedEnabled] = useState(true);
 
-  // Initialize audio with guided version since both are selected by default
   const { version, setVersion, isReady } = useCrossfadeAudio(
     AUDIO_URLS,
-    "guided", // Start with guided since both Full+Guided are selected
+    "guided",
     {
       fadeMs: 1000,
       loop: true,
@@ -87,7 +87,6 @@ function HomeInner() {
       try {
         const hasLaunchedBefore = await AsyncStorage.getItem(FIRST_LAUNCH_KEY);
         if (hasLaunchedBefore === null) {
-          // First launch
           setIsFirstLaunch(true);
           await AsyncStorage.setItem(FIRST_LAUNCH_KEY, "true");
           const timer = setTimeout(() => {
@@ -103,10 +102,11 @@ function HomeInner() {
     checkFirstLaunch();
   }, []);
 
-  // Log moon phase for debugging (remove in production)
   useEffect(() => {
-    console.log(`Current moon phase: ${moonPhase}, isNewMoon: ${isNewMoon}`);
-  }, [moonPhase, isNewMoon]);
+    console.log(
+      `Current moon phase: ${moonPhase}, isNewMoon: ${isNewMoon}, hemisphere: ${hemisphere}`
+    );
+  }, [moonPhase, isNewMoon, hemisphere]);
 
   async function shareApp() {
     try {
@@ -127,46 +127,37 @@ function HomeInner() {
 
   const getSelectedModes = () => {
     if (version === "birth" || version === "life" || version === "death") {
-      return [version]; // Only the specific mode is selected
+      return [version];
     }
 
-    // For guided/full modes, both Full and Guided/Unguided are selected
     if (guidedEnabled) {
-      return ["full", "guided"]; // Both Full and Guided are selected
+      return ["full", "guided"];
     } else {
-      return ["full", "unguided"]; // Both Full and Unguided are selected
+      return ["full", "unguided"];
     }
   };
 
   const selectedModes = getSelectedModes();
 
   const handleModePress = (title?: string, link?: any) => {
-    if (!title) return; // Guard clause for undefined title
+    if (!title) return;
     const mode = title.toLowerCase() as Version | "unguided";
 
     if (mode === "guided" || mode === "unguided") {
-      // Toggle guided mode (Full stays active)
       const newGuidedEnabled = !guidedEnabled;
       setGuidedEnabled(newGuidedEnabled);
 
       if (newGuidedEnabled) {
-        // Turn on guided mode - play guided version
         setVersion("guided");
       } else {
-        // Turn off guided mode - play full version
         setVersion("full");
       }
     } else if (mode === "full") {
-      // Clicking Full doesn't change anything if we're already in full/guided modes
-      // Full is always the base, so this is essentially a no-op
       if (version === "birth" || version === "life" || version === "death") {
-        // If coming from Birth/Life/Death, return to guided full by default
         setGuidedEnabled(true);
         setVersion("guided");
       }
-      // If already in full/guided modes, do nothing
     } else {
-      // Birth, Life, Death modes - these turn off Full
       setGuidedEnabled(false);
       setVersion(mode as Version);
     }
@@ -177,15 +168,14 @@ function HomeInner() {
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const kickIdle = () => {
     setHudVisible(true);
-    setMenuActive(true); // Set menu as active when user interacts
+    setMenuActive(true);
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     idleTimerRef.current = setTimeout(() => {
       setHudVisible(false);
-      // Only fade menus that aren't expanded
       if (!openMenu) {
         setShowMenu(false);
       }
-      setMenuActive(false); // Set menu as inactive after idle
+      setMenuActive(false);
       setAboutEnabled(true);
       setTitleLockedOff(true);
     }, IDLE_MS);
@@ -242,15 +232,10 @@ function HomeInner() {
   const hideMoon = isAboutOpen;
   const showTitle = isAboutOpen || (!titleLockedOff && hudVisible);
 
-  // Determine menu opacity based on whether it's active or idle
-  // If there's an open menu, keep it visible but fade when inactive
-  // If no open menu, fade completely based on showMenu
   const getMenuOpacity = () => {
     if (openMenu) {
-      // If menu is expanded, fade to 0 when inactive
       return menuActive ? 1 : 0;
     } else {
-      // If no menu is expanded, use normal show/hide logic
       return showMenu ? 1 : 0;
     }
   };
@@ -264,7 +249,6 @@ function HomeInner() {
       edges={["left", "right", "top"]}
       onTouchStart={handleAnyTouch}
     >
-      {/* Only show stars background during new moon */}
       {isNewMoon && (
         <MotiImage
           source={require("@/assets/images/moonrise_backdrop_block.png")}
@@ -291,12 +275,10 @@ function HomeInner() {
         />
       )}
 
-      {/* Invisible overlay to capture touches when menu is open but faded out */}
       {openMenu && !menuActive && (
         <Pressable
           style={[StyleSheet.absoluteFill, styles.clickAway]}
           onPress={() => {
-            // Just reactivate the menu, don't close it
             kickIdle();
           }}
         />
@@ -314,8 +296,8 @@ function HomeInner() {
           <MenuGroup
             label="Modes"
             links={[
-              { title: guidedEnabled ? "Guided" : "Unguided" },
               { title: "Full" },
+              { title: guidedEnabled ? "Guided" : "Unguided" },
               { title: "Birth" },
               { title: "Life" },
               { title: "Death" },
@@ -368,19 +350,21 @@ function HomeInner() {
             label="Settings"
             links={[
               {
-                title: "Share location for correct moon phase",
-                action: "use-location",
+                title: `Hemisphere: ${
+                  hemisphere === "north" ? "Northern" : "Southern"
+                }`,
+                action: "toggle-hemisphere",
               },
               {
-                title: "Subscribe to newsletter",
+                title: "Join the community",
                 action: "subscribe-newsletter",
               },
             ]}
             isExpanded
             onToggle={closeAll}
-            onSubPress={async (_title, link) => {
-              if (link?.action === "use-location") {
-                await requestOnce();
+            onSubPress={(_title, link) => {
+              if (link?.action === "toggle-hemisphere") {
+                toggleHemisphere();
               } else if (link?.action === "subscribe-newsletter") {
                 setSubscribeOpen(true);
               }
@@ -478,13 +462,20 @@ function HomeInner() {
           pointerEvents: hideMoon ? "none" : "auto",
         }}
       >
-        <Moon size={260} startScale={1} endScale={0.35} endYOffset={-80} />
+        <Moon
+          size={260}
+          startScale={1}
+          endScale={0.35}
+          endYOffset={-80}
+          hemisphere={hemisphere}
+        />
       </MotiView>
 
       <SubscribeModal
         visible={subscribeOpen}
         onClose={() => setSubscribeOpen(false)}
       />
+      {openMenu === "Settings" && <Unsubscribe />}
     </SafeAreaView>
   );
 }
@@ -532,12 +523,10 @@ const styles = StyleSheet.create({
   },
   starsBackground: {
     position: "absolute",
-    top: -50, // Extend beyond screen
+    top: -50,
     left: -50,
     right: -50,
     bottom: -50,
-    width: Dimensions.get("window").width + 100,
-    height: Dimensions.get("window").height + 100,
     zIndex: -1,
     opacity: 0.6,
   },
