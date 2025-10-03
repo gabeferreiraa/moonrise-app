@@ -1,15 +1,15 @@
 {
   "expo": {
-    "name": "Moonrise",
-    "slug": "moonrise-app",
-    "version": "1.0.4",
+    "name": "moonrise-meditation",
+    "slug": "moonrise-meditation",
+    "version": "1.0.42",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/images/moonrise_final_icon.png",
     "userInterfaceStyle": "dark",
     "scheme": "moonrise",
     "platforms": ["ios", "android"],
     "splash": {
-      "image": "./assets/splash.png",
+      "image": "./assets/images/moonrise_final_icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#0C0C0C"
     },
@@ -19,8 +19,13 @@
     "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.moonrise.meditation",
-      "buildNumber": "5",
+      "bundleIdentifier": "com.kravenworks.moonrise",
+      "entitlements": {
+        "com.apple.security.application-groups": [
+          "group.com.kravenworks.moonrise"
+        ]
+      },
+      "buildNumber": "1.0.1",
       "requireFullScreen": true,
       "infoPlist": {
         "UIBackgroundModes": ["audio"],
@@ -40,15 +45,15 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/images/moonrise_final_icon.png",
         "backgroundColor": "#0C0C0C"
       },
-      "package": "com.moonrise.meditation",
+      "package": "com.kravenworks.moonrise",
       "versionCode": 5,
       "permissions": ["android.permission.WAKE_LOCK"]
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/images/moonrise_final_icon.png"
     },
     "plugins": ["expo-font"],
     "extra": {

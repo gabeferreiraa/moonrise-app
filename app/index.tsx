@@ -15,6 +15,8 @@ import {
   Text,
   UIManager,
 } from "react-native";
+import SharedGroupPreferences from "react-native-shared-group-preferences";
+import { IntentionModal, type Intention } from "../components/IntentionModal";
 import { SubscribeModal } from "../components/SubscribeModal";
 import { Unsubscribe } from "../components/Unsubscribe";
 import {
@@ -23,6 +25,7 @@ import {
 } from "../hooks/useMoonLocation";
 
 import { CormorantGaramond_700Bold } from "@expo-google-fonts/cormorant-garamond";
+import { Lora_400Regular, Lora_500Medium } from "@expo-google-fonts/lora";
 import { useFonts } from "expo-font";
 import { Easing } from "react-native-reanimated";
 import {
@@ -44,6 +47,8 @@ const AUDIO_URLS: Record<Version, string> = {
 };
 
 const FIRST_LAUNCH_KEY = "@moonrise_first_launch";
+const INTENTION_KEY = "@moonrise_intention";
+const APP_GROUP = "group.com.kravenworks.moonrise";
 
 export default function HomeScreen() {
   return (
@@ -65,6 +70,10 @@ function HomeInner() {
   const [aboutEnabled, setAboutEnabled] = useState(false);
   const [subscribeOpen, setSubscribeOpen] = useState(false);
   const [isFirstLaunch, setIsFirstLaunch] = useState(false);
+  const [showIntentionModal, setShowIntentionModal] = useState(false);
+  const [currentIntention, setCurrentIntention] = useState<Intention | null>(
+    null
+  );
 
   const { toggleHemisphere, hemisphere, isNewMoon, moonPhase } =
     useMoonLocationCtx();
@@ -82,6 +91,35 @@ function HomeInner() {
     }
   );
 
+  const saveIntentionForWidget = async (intention: Intention) => {
+    try {
+      await AsyncStorage.setItem(INTENTION_KEY, intention);
+
+      // Add a small delay before writing to app group
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      await SharedGroupPreferences.setItem("intention", intention, APP_GROUP);
+      await SharedGroupPreferences.setItem("moonPhase", moonPhase, APP_GROUP);
+
+      console.log("Data saved to app group for widget");
+    } catch (error) {
+      console.error("Error saving intention:", error);
+      // Don't crash the app if widget data fails
+    }
+  };
+
+  const handleIntentionSelect = async (intention: Intention) => {
+    setCurrentIntention(intention);
+    await saveIntentionForWidget(intention); // Only save when user picks something
+    setShowIntentionModal(false);
+
+    if (isFirstLaunch) {
+      setTimeout(() => {
+        setSubscribeOpen(true);
+      }, 800);
+    }
+  };
+
   useEffect(() => {
     const checkFirstLaunch = async () => {
       try {
@@ -89,11 +127,10 @@ function HomeInner() {
         if (hasLaunchedBefore === null) {
           setIsFirstLaunch(true);
           await AsyncStorage.setItem(FIRST_LAUNCH_KEY, "true");
-          const timer = setTimeout(() => {
-            setSubscribeOpen(true);
-          }, 800);
-          return () => clearTimeout(timer);
         }
+
+        // Always show intention modal on app open
+        setShowIntentionModal(true);
       } catch (error) {
         console.error("Error checking first launch:", error);
       }
@@ -181,7 +218,11 @@ function HomeInner() {
     }, IDLE_MS);
   };
 
-  const [fontsLoaded] = useFonts({ CormorantGaramond_700Bold });
+  const [fontsLoaded] = useFonts({
+    CormorantGaramond_700Bold,
+    Lora_400Regular,
+    Lora_500Medium,
+  });
 
   useEffect(() => {
     if (
@@ -470,6 +511,11 @@ function HomeInner() {
           hemisphere={hemisphere}
         />
       </MotiView>
+
+      <IntentionModal
+        visible={showIntentionModal}
+        onSelect={handleIntentionSelect}
+      />
 
       <SubscribeModal
         visible={subscribeOpen}
