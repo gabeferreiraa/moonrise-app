@@ -73,7 +73,8 @@ export function SubscribeModal({
     >
       <View style={m.overlay}>
         <View style={m.card}>
-          <Text style={m.title}>Join the Moonrise Community</Text>
+          <Text style={m.subtitle}>DEVA MUNAY&#39;s MOONRISE</Text>
+          <Text style={m.title}>Subscribe to Newsletter</Text>
           <TextInput
             style={m.input}
             placeholder="Name (optional)"
@@ -93,6 +94,8 @@ export function SubscribeModal({
             autoCorrect={false}
             editable={!submitting}
             onSubmitEditing={onSubmit}
+            returnKeyType="done"
+            blurOnSubmit={true}
           />
           {msg && (
             <Text style={[m.msg, msg.isError && m.msgError]}>{msg.text}</Text>
@@ -114,7 +117,7 @@ export function SubscribeModal({
               {submitting ? (
                 <ActivityIndicator size="small" color="#141414" />
               ) : (
-                <Text style={m.btnText}>Join</Text>
+                <Text style={m.btnText}>Subscribe</Text>
               )}
             </Pressable>
           </View>
@@ -137,6 +140,13 @@ const m = StyleSheet.create({
     padding: 18,
     borderWidth: 1,
     borderColor: "#2a2a2a",
+  },
+  subtitle: {
+    color: "#CBBCA4",
+    fontSize: 11,
+    fontFamily: "System",
+    letterSpacing: 1,
+    marginBottom: 4,
   },
   title: {
     color: "#F7EBD6",

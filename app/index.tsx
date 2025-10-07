@@ -22,8 +22,10 @@ import {
   useMoonLocationCtx,
 } from "../hooks/useMoonLocation";
 
+import { IntentionPickerModal } from "@/components/IntentionPickerModal";
 import { CormorantGaramond_700Bold } from "@expo-google-fonts/cormorant-garamond";
 import { useFonts } from "expo-font";
+import { useRouter } from "expo-router";
 import { Easing } from "react-native-reanimated";
 import {
   SafeAreaView,
@@ -65,6 +67,10 @@ function HomeInner() {
   const [aboutEnabled, setAboutEnabled] = useState(false);
   const [subscribeOpen, setSubscribeOpen] = useState(false);
   const [isFirstLaunch, setIsFirstLaunch] = useState(false);
+  const [showChatBoard, setShowChatBoard] = useState(false);
+  const [showIntentionPicker, setShowIntentionPicker] = useState(false);
+  const [hasSelectedIntention, setHasSelectedIntention] = useState(false);
+  const router = useRouter();
 
   const { toggleHemisphere, hemisphere, isNewMoon, moonPhase } =
     useMoonLocationCtx();
@@ -72,13 +78,14 @@ function HomeInner() {
 
   const [guidedEnabled, setGuidedEnabled] = useState(true);
 
-  const { version, setVersion, isReady } = useCrossfadeAudio(
+  // Changed autoStart to false - audio won't start until intention is selected
+  const { version, setVersion, isReady, startAudio } = useCrossfadeAudio(
     AUDIO_URLS,
     "guided",
     {
       fadeMs: 1000,
       loop: true,
-      autoStart: true,
+      autoStart: false, // Changed from true to false
     }
   );
 
@@ -86,13 +93,14 @@ function HomeInner() {
     const checkFirstLaunch = async () => {
       try {
         const hasLaunchedBefore = await AsyncStorage.getItem(FIRST_LAUNCH_KEY);
+
+        // Always show intention picker first
+        setShowIntentionPicker(true);
+
+        // If first launch, show subscribe modal after intention is selected
         if (hasLaunchedBefore === null) {
           setIsFirstLaunch(true);
           await AsyncStorage.setItem(FIRST_LAUNCH_KEY, "true");
-          const timer = setTimeout(() => {
-            setSubscribeOpen(true);
-          }, 800);
-          return () => clearTimeout(timer);
         }
       } catch (error) {
         console.error("Error checking first launch:", error);
@@ -100,6 +108,11 @@ function HomeInner() {
     };
 
     checkFirstLaunch();
+  }, []);
+
+  useEffect(() => {
+    // Show intention picker on every app launch
+    setShowIntentionPicker(true);
   }, []);
 
   useEffect(() => {
@@ -124,6 +137,36 @@ function HomeInner() {
       Alert.alert("Could not share", String(error));
     }
   }
+
+  const handleIntentionSelect = (intention: string, audioMode: Version) => {
+    setShowIntentionPicker(false);
+    setHasSelectedIntention(true);
+    setVersion(audioMode);
+
+    console.log(`Selected intention: ${intention}, Playing: ${audioMode}`);
+
+    // Start audio playback after intention is selected
+    if (startAudio) {
+      startAudio();
+    }
+
+    // Show subscribe modal on first launch after intention is set
+    if (isFirstLaunch) {
+      setTimeout(() => {
+        setSubscribeOpen(true);
+      }, 800);
+    }
+  };
+
+  const handleIntentionSkip = () => {
+    setShowIntentionPicker(false);
+    setHasSelectedIntention(true);
+
+    // Start audio even if skipped
+    if (startAudio) {
+      startAudio();
+    }
+  };
 
   const getSelectedModes = () => {
     if (version === "birth" || version === "life" || version === "death") {
@@ -356,7 +399,7 @@ function HomeInner() {
                 action: "toggle-hemisphere",
               },
               {
-                title: "Join the community",
+                title: "Subscribe to newsletter",
                 action: "subscribe-newsletter",
               },
             ]}
@@ -397,6 +440,15 @@ function HomeInner() {
               links={[]}
               isExpanded={false}
               onToggle={() => open("Settings")}
+            />
+            <MenuGroup
+              label="Community"
+              links={[]}
+              isExpanded={false}
+              onToggle={() => {
+                setOpenMenu(null);
+                router.push("/chatboard");
+              }}
             />
             {aboutEnabled && (
               <MenuGroup
@@ -476,6 +528,11 @@ function HomeInner() {
         onClose={() => setSubscribeOpen(false)}
       />
       {openMenu === "Settings" && <Unsubscribe />}
+      <IntentionPickerModal
+        visible={showIntentionPicker}
+        onSelect={handleIntentionSelect}
+        onSkip={handleIntentionSkip}
+      />
     </SafeAreaView>
   );
 }

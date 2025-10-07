@@ -11,7 +11,6 @@ import "react-native-reanimated";
 
 import { useColorScheme } from "@/hooks/useColorScheme";
 
-// Fonts
 import { Lora_400Regular, useFonts as useLora } from "@expo-google-fonts/lora";
 import {
   Spectral_400Regular,
@@ -19,7 +18,6 @@ import {
   useFonts as useSpectral,
 } from "@expo-google-fonts/spectral";
 
-// ✅ add this
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 SplashScreen.preventAutoHideAsync();
@@ -43,8 +41,14 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-        <Stack>
-          <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack
+          screenOptions={{
+            headerShown: false,
+          }}
+        >
+          <Stack.Screen name="index" />
+          <Stack.Screen name="chatboard" />
+          <Stack.Screen name="menu" />
           <Stack.Screen name="+not-found" />
         </Stack>
         <StatusBar style="auto" />
