@@ -1,36 +1,32 @@
-import MenuGroup from "@/components/MenuGroup";
 import Moon from "@/components/Moon";
 import useCrossfadeAudio from "@/hooks/useCrossfadeAudio";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { MotiImage, MotiView } from "moti";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  Alert,
   Dimensions,
-  LayoutAnimation,
   Platform,
-  Pressable,
-  Share,
   StyleSheet,
   Text,
   UIManager,
+  View,
 } from "react-native";
+import PagerView from "react-native-pager-view";
 import { SubscribeModal } from "../components/SubscribeModal";
-import { Unsubscribe } from "../components/Unsubscribe";
 import {
   MoonLocationProvider,
   useMoonLocationCtx,
 } from "../hooks/useMoonLocation";
 
-import { IntentionPickerModal } from "@/components/IntentionPickerModal";
 import { CormorantGaramond_700Bold } from "@expo-google-fonts/cormorant-garamond";
 import { useFonts } from "expo-font";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { Easing } from "react-native-reanimated";
 import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
+import MenuPage from "./menu";
 
 type Version = "guided" | "birth" | "life" | "death" | "full";
 
@@ -56,48 +52,43 @@ export default function HomeScreen() {
 }
 
 function HomeInner() {
-  const [openMenu, setOpenMenu] = useState<
-    "Modes" | "Credits" | "Donate" | "Settings" | "About" | null
-  >(null);
-
   const IDLE_MS = 8000;
   const [hudVisible, setHudVisible] = useState(false);
-  const [showMenu, setShowMenu] = useState(false);
-  const [menuActive, setMenuActive] = useState(true);
-  const [aboutEnabled, setAboutEnabled] = useState(false);
   const [subscribeOpen, setSubscribeOpen] = useState(false);
   const [isFirstLaunch, setIsFirstLaunch] = useState(false);
-  const [showChatBoard, setShowChatBoard] = useState(false);
-  const [showIntentionPicker, setShowIntentionPicker] = useState(false);
-  const [hasSelectedIntention, setHasSelectedIntention] = useState(false);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [showPageIndicator, setShowPageIndicator] = useState(true);
+  const pagerRef = useRef<PagerView>(null);
   const router = useRouter();
+  const params = useLocalSearchParams();
 
-  const { toggleHemisphere, hemisphere, isNewMoon, moonPhase } =
+  const { hemisphere, isNewMoon, moonPhase, toggleHemisphere } =
     useMoonLocationCtx();
   const [titleLockedOff, setTitleLockedOff] = useState(false);
 
   const [guidedEnabled, setGuidedEnabled] = useState(true);
 
-  // Changed autoStart to false - audio won't start until intention is selected
-  const { version, setVersion, isReady, startAudio } = useCrossfadeAudio(
+  const { version, setVersion, isReady } = useCrossfadeAudio(
     AUDIO_URLS,
     "guided",
     {
       fadeMs: 1000,
       loop: true,
-      autoStart: false, // Changed from true to false
+      autoStart: false,
     }
   );
 
   useEffect(() => {
     const checkFirstLaunch = async () => {
       try {
+        // Only redirect to intention screen if we don't have params from it
+        if (!params.intention && !params.audioMode) {
+          router.replace("/intention");
+          return;
+        }
+
+        // Check if first launch for subscribe modal
         const hasLaunchedBefore = await AsyncStorage.getItem(FIRST_LAUNCH_KEY);
-
-        // Always show intention picker first
-        setShowIntentionPicker(true);
-
-        // If first launch, show subscribe modal after intention is selected
         if (hasLaunchedBefore === null) {
           setIsFirstLaunch(true);
           await AsyncStorage.setItem(FIRST_LAUNCH_KEY, "true");
@@ -110,10 +101,35 @@ function HomeInner() {
     checkFirstLaunch();
   }, []);
 
+  // Handle params from intention screen
   useEffect(() => {
-    // Show intention picker on every app launch
-    setShowIntentionPicker(true);
-  }, []);
+    const handleIntentionParams = async () => {
+      if (params.intention && params.audioMode) {
+        console.log(
+          `Received intention: ${params.intention}, Playing: ${params.audioMode}`
+        );
+
+        // Set the audio version
+        setVersion(params.audioMode as Version);
+
+        // Update guided enabled based on mode
+        if (params.audioMode === "guided") {
+          setGuidedEnabled(true);
+        } else {
+          setGuidedEnabled(false);
+        }
+
+        // Show subscribe modal on first launch
+        if (isFirstLaunch) {
+          setTimeout(() => {
+            setSubscribeOpen(true);
+          }, 800);
+        }
+      }
+    };
+
+    handleIntentionParams();
+  }, [params]);
 
   useEffect(() => {
     console.log(
@@ -121,52 +137,14 @@ function HomeInner() {
     );
   }, [moonPhase, isNewMoon, hemisphere]);
 
-  async function shareApp() {
-    try {
-      const url =
-        "https://apps.apple.com/us/app/moonrise-meditation/id6751916223";
-      const shareTitle = "Moonrise — ambient album app";
+  // Fade out page indicator after 8 seconds
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowPageIndicator(false);
+    }, IDLE_MS);
 
-      await Share.share(
-        Platform.select({
-          ios: { url, shareTitle },
-          android: { message: `${shareTitle}\n${url}` },
-        })!
-      );
-    } catch (error) {
-      Alert.alert("Could not share", String(error));
-    }
-  }
-
-  const handleIntentionSelect = (intention: string, audioMode: Version) => {
-    setShowIntentionPicker(false);
-    setHasSelectedIntention(true);
-    setVersion(audioMode);
-
-    console.log(`Selected intention: ${intention}, Playing: ${audioMode}`);
-
-    // Start audio playback after intention is selected
-    if (startAudio) {
-      startAudio();
-    }
-
-    // Show subscribe modal on first launch after intention is set
-    if (isFirstLaunch) {
-      setTimeout(() => {
-        setSubscribeOpen(true);
-      }, 800);
-    }
-  };
-
-  const handleIntentionSkip = () => {
-    setShowIntentionPicker(false);
-    setHasSelectedIntention(true);
-
-    // Start audio even if skipped
-    if (startAudio) {
-      startAudio();
-    }
-  };
+    return () => clearTimeout(timer);
+  }, []);
 
   const getSelectedModes = () => {
     if (version === "birth" || version === "life" || version === "death") {
@@ -211,16 +189,12 @@ function HomeInner() {
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const kickIdle = () => {
     setHudVisible(true);
-    setMenuActive(true);
+    setShowPageIndicator(true);
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     idleTimerRef.current = setTimeout(() => {
       setHudVisible(false);
-      if (!openMenu) {
-        setShowMenu(false);
-      }
-      setMenuActive(false);
-      setAboutEnabled(true);
       setTitleLockedOff(true);
+      setShowPageIndicator(false);
     }, IDLE_MS);
   };
 
@@ -242,7 +216,6 @@ function HomeInner() {
   }, []);
 
   const handleAnyTouch = () => {
-    setShowMenu(true);
     kickIdle();
   };
 
@@ -257,34 +230,7 @@ function HomeInner() {
     Math.max(0, DESIRED_FROM_TOP - insets.top)
   );
 
-  const open = (g: "Modes" | "Credits" | "Donate" | "Settings" | "About") => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setOpenMenu((prev) => (prev === g ? null : g));
-    kickIdle();
-  };
-
-  const closeAll = () => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setOpenMenu(null);
-    kickIdle();
-  };
-
-  const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-
-  const isAboutOpen = openMenu === "About";
-  const hideMoon = isAboutOpen;
-  const showTitle = isAboutOpen || (!titleLockedOff && hudVisible);
-
-  const getMenuOpacity = () => {
-    if (openMenu) {
-      return menuActive ? 1 : 0;
-    } else {
-      return showMenu ? 1 : 0;
-    }
-  };
-
-  const menuOpacity = getMenuOpacity();
-  const menuPointerEvents = openMenu || showMenu ? "auto" : "none";
+  const showTitle = !titleLockedOff && hudVisible;
 
   return (
     <SafeAreaView
@@ -292,246 +238,108 @@ function HomeInner() {
       edges={["left", "right", "top"]}
       onTouchStart={handleAnyTouch}
     >
-      {isNewMoon && (
-        <MotiImage
-          source={require("@/assets/images/moonrise_backdrop_block.png")}
-          style={styles.starsBackground}
-          resizeMode="cover"
-          from={{ opacity: 0.65 }}
-          animate={{
-            opacity: [1, 0.7, 1, 0.5, 1],
-          }}
-          transition={{
-            type: "timing",
-            duration: 1500,
-            loop: true,
-            easing: Easing.inOut(Easing.quad),
-          }}
-        />
-      )}
-
-      {openMenu && menuActive && (
-        <Pressable
-          style={[StyleSheet.absoluteFill, styles.clickAway]}
-          onPress={closeAll}
-          onTouchStart={handleAnyTouch}
-        />
-      )}
-
-      {openMenu && !menuActive && (
-        <Pressable
-          style={[StyleSheet.absoluteFill, styles.clickAway]}
-          onPress={() => {
-            kickIdle();
-          }}
-        />
-      )}
-
-      <MotiView
-        from={{ opacity: 0 }}
-        animate={{ opacity: menuOpacity }}
-        transition={{ type: "timing", duration: 700 }}
-        style={styles.menu}
-        pointerEvents={menuPointerEvents}
-        onTouchStart={handleAnyTouch}
-      >
-        {openMenu === "Modes" && (
-          <MenuGroup
-            label="Modes"
-            links={[
-              { title: "Full" },
-              { title: guidedEnabled ? "Guided" : "Unguided" },
-              { title: "Birth" },
-              { title: "Life" },
-              { title: "Death" },
-            ]}
-            isExpanded
-            onToggle={closeAll}
-            selectedSubIds={selectedModes.map((mode) => `Modes:${cap(mode)}`)}
-            onSubPress={handleModePress}
-            closeOnLinkPress={false}
-            specialColors={{
-              "Modes:Guided": "#A0B5A8",
-              "Modes:Unguided": "#A0B5A8",
-            }}
-          />
-        )}
-
-        {openMenu === "Credits" && (
-          <MenuGroup
-            label="Credits"
-            links={[
-              { title: "Alchemy crystal singing bowls — Deva Munay" },
-              { title: "Produced by Jeff Bhasker" },
-              { title: "Recorded by Greg Morgenstein" },
-              { title: "Death Be Not Proud — recited by Penny" },
-              { title: "Recorded at Ft. Sufi Big Sur 2024" },
-              { title: "Hear360" },
-            ]}
-            isExpanded
-            onToggle={closeAll}
-          />
-        )}
-
-        {openMenu === "Donate" && (
-          <MenuGroup
-            label="Donate"
-            links={[
-              {
-                title: "Donate to charity",
-                url: "https://example.com/donate",
-              },
-              { title: "Other charity", url: "https://example.com/patreon" },
-            ]}
-            isExpanded
-            onToggle={closeAll}
-          />
-        )}
-
-        {openMenu === "Settings" && (
-          <MenuGroup
-            label="Settings"
-            links={[
-              {
-                title: `Hemisphere: ${
-                  hemisphere === "north" ? "Northern" : "Southern"
-                }`,
-                action: "toggle-hemisphere",
-              },
-              {
-                title: "Subscribe to newsletter",
-                action: "subscribe-newsletter",
-              },
-            ]}
-            isExpanded
-            onToggle={closeAll}
-            onSubPress={(_title, link) => {
-              if (link?.action === "toggle-hemisphere") {
-                toggleHemisphere();
-              } else if (link?.action === "subscribe-newsletter") {
-                setSubscribeOpen(true);
-              }
-            }}
-          />
-        )}
-
-        {!openMenu && (
-          <>
-            <MenuGroup
-              label="Modes"
-              links={[]}
-              isExpanded={false}
-              onToggle={() => open("Modes")}
-            />
-            <MenuGroup
-              label="Credits"
-              links={[]}
-              isExpanded={false}
-              onToggle={() => open("Credits")}
-            />
-            <MenuGroup
-              label="Donate"
-              links={[]}
-              isExpanded={false}
-              onToggle={() => open("Donate")}
-            />
-            <MenuGroup
-              label="Settings"
-              links={[]}
-              isExpanded={false}
-              onToggle={() => open("Settings")}
-            />
-            <MenuGroup
-              label="Community"
-              links={[]}
-              isExpanded={false}
-              onToggle={() => {
-                setOpenMenu(null);
-                router.push("/chatboard");
-              }}
-            />
-            {aboutEnabled && (
-              <MenuGroup
-                label="About"
-                links={[]}
-                isExpanded={false}
-                onToggle={() => open("About")}
-              />
-            )}
-          </>
-        )}
-
-        {openMenu === "About" && (
-          <MenuGroup
-            label="About"
-            links={[
-              {
-                title: "",
-                icon: "share-outline",
-                url: undefined,
-              },
-            ]}
-            isExpanded
-            onToggle={closeAll}
-            onSubPress={(title) => {
-              if (title === "") {
-                shareApp();
-              }
-            }}
-          />
-        )}
-      </MotiView>
-
-      <MotiView
-        from={{ opacity: 0 }}
-        animate={{ opacity: showTitle ? 1 : 0 }}
-        transition={{ type: "timing", duration: 700 }}
-        style={styles.centerFill}
-        pointerEvents="none"
-      >
-        <Text
-          style={[
-            styles.title,
-            fontsLoaded && { fontFamily: "CormorantGaramond_700Bold" },
-          ]}
-        >
-          MOONRISE
-        </Text>
-        <Text style={styles.subtitle}>Deva Munay</Text>
-      </MotiView>
-
-      <MotiView
-        from={{ opacity: 0 }}
-        animate={{ opacity: hideMoon ? 0 : 1 }}
-        transition={{ type: "timing", duration: 1200, delay: 300 }}
-        onTouchStart={handleAnyTouch}
-        style={{
-          position: "absolute",
-          top: moonOffset,
-          left: 0,
-          right: 0,
-          alignItems: "center",
-          pointerEvents: hideMoon ? "none" : "auto",
+      <PagerView
+        ref={pagerRef}
+        style={styles.pagerView}
+        initialPage={0}
+        onPageSelected={(e) => {
+          setCurrentPage(e.nativeEvent.position);
+          kickIdle();
         }}
       >
-        <Moon
-          size={260}
-          startScale={1}
-          endScale={0.35}
-          endYOffset={-80}
-          hemisphere={hemisphere}
-        />
+        {/* Page 1: Moon Screen */}
+        <View style={styles.page} key="1">
+          {isNewMoon && (
+            <MotiImage
+              source={require("@/assets/images/moonrise_backdrop_block.png")}
+              style={styles.starsBackground}
+              resizeMode="cover"
+              from={{ opacity: 0.65 }}
+              animate={{
+                opacity: [1, 0.7, 1, 0.5, 1],
+              }}
+              transition={{
+                type: "timing",
+                duration: 1500,
+                loop: true,
+                easing: Easing.inOut(Easing.quad),
+              }}
+            />
+          )}
+
+          <MotiView
+            from={{ opacity: 0 }}
+            animate={{ opacity: showTitle ? 1 : 0 }}
+            transition={{ type: "timing", duration: 700 }}
+            style={styles.centerFill}
+            pointerEvents="none"
+          >
+            <Text
+              style={[
+                styles.title,
+                fontsLoaded && { fontFamily: "CormorantGaramond_700Bold" },
+              ]}
+            >
+              MOONRISE
+            </Text>
+            <Text style={styles.subtitle}>Deva Munay</Text>
+          </MotiView>
+
+          <MotiView
+            from={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ type: "timing", duration: 1200, delay: 300 }}
+            onTouchStart={handleAnyTouch}
+            style={{
+              position: "absolute",
+              top: moonOffset,
+              left: 0,
+              right: 0,
+              alignItems: "center",
+            }}
+          >
+            <Moon
+              size={260}
+              startScale={1}
+              endScale={0.35}
+              endYOffset={-80}
+              hemisphere={hemisphere}
+            />
+          </MotiView>
+        </View>
+
+        {/* Page 2: Menu Screen */}
+        <View style={styles.page} key="2">
+          <MenuPage
+            version={version}
+            guidedEnabled={guidedEnabled}
+            selectedModes={selectedModes}
+            hemisphere={hemisphere}
+            onModePress={handleModePress}
+            onSubscribeOpen={() => setSubscribeOpen(true)}
+            onToggleHemisphere={toggleHemisphere}
+            onKickIdle={kickIdle}
+          />
+        </View>
+      </PagerView>
+
+      {/* Page Indicator Dots */}
+      <MotiView
+        from={{ opacity: 0 }}
+        animate={{ opacity: showPageIndicator ? 1 : 0 }}
+        transition={{ type: "timing", duration: 700 }}
+        style={styles.pageIndicator}
+        pointerEvents="none"
+      >
+        <View style={styles.dotsContainer}>
+          <View style={[styles.dot, currentPage === 0 && styles.dotActive]} />
+          <View style={[styles.dot, currentPage === 1 && styles.dotActive]} />
+        </View>
       </MotiView>
 
       <SubscribeModal
         visible={subscribeOpen}
         onClose={() => setSubscribeOpen(false)}
-      />
-      {openMenu === "Settings" && <Unsubscribe />}
-      <IntentionPickerModal
-        visible={showIntentionPicker}
-        onSelect={handleIntentionSelect}
-        onSkip={handleIntentionSkip}
       />
     </SafeAreaView>
   );
@@ -541,23 +349,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#0C0C0C",
-    paddingBottom: 32,
   },
-  menu: {
-    position: "absolute",
-    top: 60,
-    right: 20,
-    alignItems: "flex-end",
-    zIndex: 2,
+  pagerView: {
+    flex: 1,
   },
-  wrapper: {
-    marginTop: 100,
-    alignSelf: "center",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  clickAway: {
-    zIndex: 1,
+  page: {
+    flex: 1,
+    backgroundColor: "#0C0C0C",
   },
   centerFill: {
     ...StyleSheet.absoluteFillObject,
@@ -586,5 +384,28 @@ const styles = StyleSheet.create({
     bottom: -50,
     zIndex: -1,
     opacity: 0.6,
+  },
+  pageIndicator: {
+    position: "absolute",
+    bottom: 40,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    zIndex: 10,
+  },
+  dotsContainer: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#DEC4A1",
+    opacity: 0.3,
+  },
+  dotActive: {
+    opacity: 1,
+    backgroundColor: "#E6D2B5",
   },
 });

@@ -22,30 +22,41 @@ export default function MenuGroup({
   links,
   isExpanded,
   onToggle,
-  selectedSubId, // Keep for backwards compatibility
-  selectedSubIds, // New prop for multiple selections
+  selectedSubId,
+  selectedSubIds,
   onSubPress,
   closeOnLinkPress = true,
-  specialColors = {}, // New prop for special colors
+  specialColors = {},
 }: {
   label: string;
   links: Link[];
   isExpanded: boolean;
   onToggle: () => void;
-  selectedSubId?: string | null; // Keep for backwards compatibility
-  selectedSubIds?: string[]; // New prop for multiple selections
+  selectedSubId?: string | null;
+  selectedSubIds?: string[];
   onSubPress?: (title?: string, link?: Link) => void;
   closeOnLinkPress?: boolean;
-  specialColors?: Record<string, string>; // New prop for special colors
+  specialColors?: Record<string, string>;
 }) {
   const handleLinkPress = async (link: Link) => {
+    // Always call onSubPress first for actions
+    if (link.action || !link.url) {
+      onSubPress?.(link.title, link);
+      // Only close if closeOnLinkPress is true
+      if (closeOnLinkPress) {
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+        onToggle();
+      }
+      return;
+    }
+
+    // Handle URL links
     if (link.url) {
       await Linking.openURL(link.url);
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       if (closeOnLinkPress) onToggle();
       return;
     }
-    onSubPress?.(link.title, link);
   };
 
   const labelStyle = isExpanded
@@ -77,7 +88,7 @@ export default function MenuGroup({
           onToggle();
         }}
         hitSlop={8}
-        style={{ alignSelf: "flex-end" }}
+        style={{ alignSelf: "center" }}
       >
         <MotiView
           from={{ opacity: 0, translateY: -4 }}
@@ -122,14 +133,14 @@ export default function MenuGroup({
                     easing: Easing.out(Easing.cubic),
                     delay: i * 60,
                   }}
-                  style={{ alignSelf: "flex-end" }}
+                  style={{ alignSelf: "center" }}
                 >
                   <Pressable onPress={() => handleLinkPress(link)} hitSlop={6}>
                     <View style={styles.linkContainer}>
                       {link.icon && (
                         <Ionicons
                           name={link.icon as any}
-                          size={16}
+                          size={19}
                           color={itemColor}
                           style={styles.linkIcon}
                         />
@@ -158,42 +169,42 @@ export default function MenuGroup({
 
 const styles = StyleSheet.create({
   group: {
-    marginBottom: 12,
-    alignSelf: "flex-end",
-    alignItems: "flex-end",
+    marginBottom: 18,
+    alignSelf: "center",
+    alignItems: "center",
     maxWidth: 420,
   },
   label: {
-    fontSize: 18,
+    fontSize: 22,
     color: "#DEC4A1",
     fontWeight: "500",
     fontFamily: "Lora_400Regular",
-    textAlign: "right",
+    textAlign: "center",
   },
   selectedLabel: {
-    fontSize: 24,
+    fontSize: 29,
     color: "#E6D2B5",
   },
   linksWrap: {
-    marginTop: 6,
-    alignSelf: "flex-end",
-    alignItems: "flex-end",
+    marginTop: 10,
+    alignSelf: "center",
+    alignItems: "center",
     width: "auto",
   },
   linkContainer: {
-    flexDirection: "row-reverse",
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "flex-start",
+    justifyContent: "center",
   },
   linkIcon: {
-    marginLeft: 6,
+    marginRight: 6,
   },
   link: {
-    fontSize: 16,
-    paddingLeft: 10,
-    paddingTop: 4,
+    fontSize: 19,
+    paddingHorizontal: 10,
+    paddingTop: 6,
     fontFamily: "Lora_400Regular",
-    textAlign: "right",
+    textAlign: "center",
   },
   linkSelected: {
     fontWeight: "condensed",
