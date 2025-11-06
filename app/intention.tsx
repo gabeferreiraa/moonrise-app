@@ -1,9 +1,9 @@
 import { Picker } from "@react-native-picker/picker";
+import { Audio } from "expo-av";
 import { useRouter } from "expo-router";
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
-  Dimensions,
   StyleSheet,
   Text,
   TextInput,
@@ -12,10 +12,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-const { width } = Dimensions.get("window");
-
 export const INTENTIONS = [
-  "Full Guided",
+  "Extended Experience",
   "Clarity",
   "Healing and restoration",
   "Release",
@@ -50,8 +48,81 @@ export default function IntentionScreen() {
   const [showCustomInput, setShowCustomInput] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const cycleIndexRef = useRef(0);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const screenFadeAnim = useRef(new Animated.Value(0)).current;
+  const blackFadeAnim = useRef(new Animated.Value(0)).current;
   const router = useRouter();
+  const intentionAudioRef = useRef<Audio.Sound | null>(null);
+  const isUnmountingRef = useRef(false);
+
+  const INTENTION_AUDIO_URL =
+    "https://firebasestorage.googleapis.com/v0/b/moonrise001-5aa1c.firebasestorage.app/o/intentionwheel.m4a?alt=media&token=5b5d4239-8ca0-4be9-a07e-db8f1b1e6220";
+
+  // Fade in from black when screen loads
+  useEffect(() => {
+    Animated.timing(screenFadeAnim, {
+      toValue: 1,
+      duration: 800,
+      useNativeDriver: true,
+    }).start();
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    let sound: Audio.Sound | null = null;
+
+    const setupAudio = async () => {
+      try {
+        await Audio.setAudioModeAsync({
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: true,
+        });
+
+        // Create and load the sound
+        const { sound: newSound } = await Audio.Sound.createAsync(
+          { uri: INTENTION_AUDIO_URL },
+          {
+            shouldPlay: false, // Don't play immediately
+            isLooping: true,
+            volume: 0.2,
+          }
+        );
+
+        if (!mounted) {
+          // Component unmounted while loading
+          await newSound.unloadAsync();
+          return;
+        }
+
+        sound = newSound;
+        intentionAudioRef.current = newSound;
+
+        // Wait for the sound to be fully loaded before playing
+        const status = await newSound.getStatusAsync();
+        if (status.isLoaded && mounted && !isUnmountingRef.current) {
+          await newSound.playAsync();
+        }
+      } catch (error) {
+        console.error("Failed to load intention audio:", error);
+      }
+    };
+
+    setupAudio();
+
+    // Cleanup when component unmounts
+    return () => {
+      mounted = false;
+      isUnmountingRef.current = true;
+
+      // Clean up the audio
+      if (sound) {
+        sound.stopAsync().catch(() => {});
+        sound.unloadAsync().catch(() => {});
+      } else if (intentionAudioRef.current) {
+        intentionAudioRef.current.stopAsync().catch(() => {});
+        intentionAudioRef.current.unloadAsync().catch(() => {});
+      }
+    };
+  }, []);
 
   const handleIntentionChange = (value: string) => {
     setSelectedIntention(value);
@@ -64,8 +135,8 @@ export default function IntentionScreen() {
   };
 
   const getAudioMode = (intention: string): Version => {
-    // Only "Full Guided" and "Custom..." play guided
-    if (intention === "Full Guided" || showCustomInput) {
+    // Only "Extended Experience" and "Custom..." play guided
+    if (intention === "Extended Experience" || showCustomInput) {
       return "guided";
     }
 
@@ -77,7 +148,7 @@ export default function IntentionScreen() {
     return mode;
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     const finalIntention =
       showCustomInput && customIntention.trim()
         ? customIntention.trim()
@@ -85,45 +156,83 @@ export default function IntentionScreen() {
 
     const audioMode = getAudioMode(selectedIntention);
 
-    // Hide content immediately
     setIsTransitioning(true);
+    isUnmountingRef.current = true; // Prevent any further audio operations
 
-    // Start white fade animation
+    // Start a very gradual audio fade (3 seconds)
+    if (intentionAudioRef.current) {
+      const fadeOutDuration = 3000;
+      const fadeSteps = 30;
+      const stepDuration = fadeOutDuration / fadeSteps;
+      const startVolume = 0.2;
+
+      // Don't await this - let it run in background
+      (async () => {
+        try {
+          const sound = intentionAudioRef.current;
+          if (!sound) return;
+
+          // Check if sound is still loaded before each operation
+          for (let i = fadeSteps; i >= 0; i--) {
+            if (isUnmountingRef.current) {
+              const status = await sound.getStatusAsync();
+              if (!status.isLoaded) break;
+
+              const volume = (startVolume * i) / fadeSteps;
+              await sound.setVolumeAsync(volume);
+              await new Promise((resolve) => setTimeout(resolve, stepDuration));
+            }
+          }
+
+          // Final cleanup if still loaded
+          if (isUnmountingRef.current) {
+            const status = await sound.getStatusAsync();
+            if (status.isLoaded) {
+              await sound.stopAsync();
+              await sound.unloadAsync();
+            }
+          }
+        } catch (error) {
+          // Silently catch errors - component might be unmounted
+          console.log("Audio fade cleanup handled gracefully");
+        }
+      })();
+    }
+
+    // Use a gentle fade to black instead of white flash
     Animated.sequence([
-      // Fade to white
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 750,
-        useNativeDriver: true,
-      }),
-      // Stay white briefly
-      Animated.delay(0),
-      // Fade out from white
-      Animated.timing(fadeAnim, {
+      // Fade content out
+      Animated.timing(screenFadeAnim, {
         toValue: 0,
-        duration: 750,
+        duration: 2000, // Increased from 1200ms to 2000ms (2 seconds)
         useNativeDriver: true,
       }),
+      // Small pause in black
+      Animated.delay(400), // Increased from 400ms to 600ms
     ]).start(() => {
-      // After animation completes, navigate to index with params
+      // Navigate after visual transition completes
       router.replace({
-        pathname: "/",
+        pathname: "/home",
         params: {
           intention: finalIntention,
           audioMode: audioMode,
+          startWithGuided: "true",
+          fadeInAudio: "true",
         },
       });
     });
   };
 
-  const handleSkip = () => {
-    // Navigate without intention
-    router.replace("/");
-  };
-
   return (
     <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
-      {!isTransitioning && (
+      <Animated.View
+        style={[
+          styles.contentWrapper,
+          {
+            opacity: screenFadeAnim,
+          },
+        ]}
+      >
         <View style={styles.content}>
           <Text style={styles.title}>Set Your Intention</Text>
           <Text style={styles.subtitle}>
@@ -168,32 +277,15 @@ export default function IntentionScreen() {
           {/* Buttons */}
           <View style={styles.buttonContainer}>
             <TouchableOpacity
-              style={[styles.button, styles.skipButton]}
-              onPress={handleSkip}
-            >
-              <Text style={styles.skipButtonText}>Skip</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
               style={[styles.button, styles.confirmButton]}
               onPress={handleConfirm}
+              disabled={isTransitioning}
             >
               <Text style={styles.confirmButtonText}>Begin</Text>
             </TouchableOpacity>
           </View>
         </View>
-      )}
-
-      {/* White Fade Overlay */}
-      <Animated.View
-        style={[
-          styles.fadeOverlay,
-          {
-            opacity: fadeAnim,
-          },
-        ]}
-        pointerEvents="none"
-      />
+      </Animated.View>
     </SafeAreaView>
   );
 }
@@ -202,6 +294,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#0C0C0C",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  contentWrapper: {
+    flex: 1,
+    width: "100%",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -275,16 +373,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderWidth: 1,
   },
-  skipButton: {
-    backgroundColor: "transparent",
-    borderColor: "#3A3530",
-  },
-  skipButtonText: {
-    fontSize: 17,
-    color: "#CBBCA4",
-    fontFamily: "System",
-    fontWeight: "500",
-  },
   confirmButton: {
     backgroundColor: "#A0B5A8",
     borderColor: "#A0B5A8",
@@ -294,9 +382,5 @@ const styles = StyleSheet.create({
     color: "#0C0C0C",
     fontFamily: "System",
     fontWeight: "600",
-  },
-  fadeOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "#FFFFFF",
   },
 });

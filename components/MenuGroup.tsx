@@ -12,6 +12,7 @@ import { Easing } from "react-native-reanimated";
 
 export type Link = {
   title: string;
+  creditsTitle?: string;
   url?: string;
   action?: string;
   icon?: string;
@@ -133,7 +134,7 @@ export default function MenuGroup({
                     easing: Easing.out(Easing.cubic),
                     delay: i * 60,
                   }}
-                  style={{ alignSelf: "center" }}
+                  style={{ alignSelf: "center", marginBottom: 10 }}
                 >
                   <Pressable onPress={() => handleLinkPress(link)} hitSlop={6}>
                     <View style={styles.linkContainer}>

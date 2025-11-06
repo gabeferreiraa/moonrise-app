@@ -10,51 +10,68 @@ import React, {
 export type Hemisphere = "north" | "south";
 export type MoonPhase =
   | "new"
-  | "waxing_crescent"
-  | "first_quarter"
-  | "waxing_gibbous"
+  | "waxing-crescent"
+  | "first-quarter"
+  | "waxing-gibbous"
   | "full"
-  | "waning_gibbous"
-  | "last_quarter"
-  | "waning_crescent";
+  | "waning-gibbous"
+  | "last-quarter"
+  | "waning-crescent";
 
 // Use the EXACT same calculation as Moon.tsx component
 function calculateMoonPhase(date: Date = new Date()): {
   phase: MoonPhase;
   illumination: number;
 } {
-  const synodic = 29.530588853;
-  const knownNewMoon = new Date(Date.UTC(2000, 0, 6, 18, 14));
+  // Using a well-known new moon as reference
+  // September 3, 2024 at 01:55 UTC was a new moon
+  const knownNewMoon = new Date("2024-09-03T01:55:00Z");
+  const lunarCycle = 29.53058867;
 
-  // Use local time, same as Moon.tsx
-  const days =
+  const daysFromNewMoon =
     (date.getTime() - knownNewMoon.getTime()) / (1000 * 60 * 60 * 24);
-  const lunations = (days / synodic) % 1;
-  const frac = (lunations + 1) % 1;
 
-  // Calculate illumination (0 = new moon, 0.5 = full moon)
-  let illumination: number;
-  if (frac <= 0.5) {
-    illumination = frac * 2;
-  } else {
-    illumination = 2 - frac * 2;
-  }
+  // Calculate position in cycle (0 = new moon, 0.5 = full moon)
+  let cyclePosition = (daysFromNewMoon / lunarCycle) % 1;
 
-  // Determine phase name using same logic as Moon component
-  const phaseIndex = Math.floor(frac * 8 + 0.5) % 8;
+  // Normalize to 0-1 range
+  if (cyclePosition < 0) cyclePosition += 1;
+
+  // Convert to phase index (0-7)
+  const phaseIndex = Math.floor(cyclePosition * 8) % 8;
+
   const indexToPhase: MoonPhase[] = [
     "new",
-    "waxing_crescent",
-    "first_quarter",
-    "waxing_gibbous",
+    "waxing-crescent",
+    "first-quarter",
+    "waxing-gibbous",
     "full",
-    "waning_gibbous",
-    "last_quarter",
-    "waning_crescent",
+    "waning-gibbous",
+    "last-quarter",
+    "waning-crescent",
   ];
 
+  const phase = indexToPhase[phaseIndex];
+
+  // Calculate illumination based on cycle position
+  let illumination: number;
+  if (cyclePosition <= 0.5) {
+    illumination = cyclePosition * 2;
+  } else {
+    illumination = 2 - cyclePosition * 2;
+  }
+
+  console.log(`Moon calculation for ${date.toDateString()}:`, {
+    daysFromNewMoon: daysFromNewMoon.toFixed(2),
+    cyclePosition: cyclePosition.toFixed(3),
+    phaseIndex,
+    phase,
+    illumination: illumination.toFixed(2),
+    debug: `October 20, 2024 should be ~47 days from Sep 3, which is ~1.59 cycles`,
+  });
+
   return {
-    phase: indexToPhase[phaseIndex],
+    phase,
     illumination,
   };
 }

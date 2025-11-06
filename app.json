@@ -2,16 +2,17 @@
   "expo": {
     "name": "moonrise-meditation",
     "slug": "moonrise-meditation",
-    "version": "1.0.42",
+    "version": "1.0.5",
     "orientation": "portrait",
     "icon": "./assets/images/moonrise_final_icon.png",
     "scheme": "moonriseapp",
+    "initialRouteName": "video-intro",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
 
     "ios": {
       "bundleIdentifier": "com.kravenworks.moonrise",
-      "buildNumber": "1.0.1",
+      "buildNumber": "1.0.2",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "UIBackgroundModes": ["audio"]
@@ -45,10 +46,7 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/moonrise_final_icon.png",
-          "imageWidth": 200,
-          "resizeMode": "contain",
-          "backgroundColor": "#090B0C"
+          "backgroundColor": " #0C0C0C"
         }
       ],
       "expo-font",

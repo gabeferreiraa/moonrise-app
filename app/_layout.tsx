@@ -20,6 +20,7 @@ import {
 
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
+// Keep splash screen visible while loading fonts
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
@@ -33,7 +34,11 @@ export default function RootLayout() {
   const fontsLoaded = spectralLoaded && loraLoaded;
 
   useEffect(() => {
-    if (fontsLoaded) SplashScreen.hideAsync();
+    if (fontsLoaded) {
+      // Hide splash screen once fonts are loaded
+      // The video intro will take over from here
+      SplashScreen.hideAsync();
+    }
   }, [fontsLoaded]);
 
   if (!fontsLoaded) return null;
@@ -44,10 +49,48 @@ export default function RootLayout() {
         <Stack
           screenOptions={{
             headerShown: false,
+            contentStyle: {
+              backgroundColor: "#0C0C0C",
+            },
           }}
         >
-          <Stack.Screen name="index" />
-          <Stack.Screen name="chatboard" />
+          <Stack.Screen
+            name="video-intro"
+            options={{
+              animation: "none",
+              contentStyle: {
+                backgroundColor: "#0C0C0C",
+              },
+            }}
+          />
+          <Stack.Screen
+            name="intention"
+            options={{
+              animation: "none",
+              contentStyle: {
+                backgroundColor: "#0C0C0C",
+              },
+            }}
+          />
+          <Stack.Screen
+            name="index"
+            options={{
+              animation: "none",
+              contentStyle: {
+                backgroundColor: "#0C0C0C",
+              },
+            }}
+          />
+          <Stack.Screen
+            name="chatboard"
+            options={{
+              animation: "fade",
+              animationDuration: 200,
+              contentStyle: {
+                backgroundColor: "#000000",
+              },
+            }}
+          />
           <Stack.Screen name="menu" />
           <Stack.Screen name="+not-found" />
         </Stack>

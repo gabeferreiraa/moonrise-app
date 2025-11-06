@@ -39,15 +39,12 @@ export default function MenuPage({
   const [openMenu, setOpenMenu] = useState<
     "Modes" | "Credits" | "Donate" | "Settings" | "About" | null
   >(null);
-  const [menuActive, setMenuActive] = useState(true);
-  const [aboutEnabled, setAboutEnabled] = useState(true);
   const router = useRouter();
   const [fontsLoaded] = useFonts({ CormorantGaramond_700Bold });
 
   const open = (g: "Modes" | "Credits" | "Donate" | "Settings" | "About") => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setOpenMenu((prev) => (prev === g ? null : g));
-    setMenuActive(true);
     onKickIdle();
   };
 
@@ -56,8 +53,6 @@ export default function MenuPage({
     setOpenMenu(null);
     onKickIdle();
   };
-
-  const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
   async function shareApp() {
     try {
@@ -97,10 +92,17 @@ export default function MenuPage({
           MOONRISE
         </Text>
         <Text style={styles.subtitle}>Deva Munay</Text>
+        <Text style={styles.description}>
+          The content in Moonrise is a flagship collaboration between Deva Munay
+          - a veteran crystal bowl healer, and Jeff Bhasker - one of the
+          greatest music producers of the 21st Century. Their shared passion for
+          meditation and the importance of stillness in expanding the power of
+          the mind gave birth to Moonrise.
+        </Text>
       </MotiView>
 
       <View style={styles.menuContainer} pointerEvents="box-none">
-        {openMenu && menuActive && (
+        {openMenu && (
           <Pressable
             style={[StyleSheet.absoluteFill, styles.clickAway]}
             onPress={closeAll}
@@ -108,49 +110,16 @@ export default function MenuPage({
           />
         )}
 
-        {openMenu && !menuActive && (
-          <Pressable
-            style={[StyleSheet.absoluteFill, styles.clickAway]}
-            onPress={onKickIdle}
-          />
-        )}
-
         <View style={styles.menuContent}>
-          {/* {openMenu === "Modes" && (
-            <MenuGroup
-              label="Modes"
-              links={[
-                { title: "Full" },
-                { title: guidedEnabled ? "Guided" : "Unguided" },
-                { title: "Birth" },
-                { title: "Life" },
-                { title: "Death" },
-              ]}
-              isExpanded
-              onToggle={closeAll}
-              selectedSubIds={selectedModes.map((mode) => `Modes:${cap(mode)}`)}
-              onSubPress={(title, link) => {
-                console.log("Mode pressed:", title);
-                onModePress(title, link);
-              }}
-              closeOnLinkPress={false}
-              specialColors={{
-                "Modes:Guided": "#A0B5A8",
-                "Modes:Unguided": "#A0B5A8",
-              }}
-            />
-          )} */}
-
           {openMenu === "Credits" && (
             <MenuGroup
               label="Credits"
               links={[
-                { title: "Alchemy crystal singing bowls — Deva Munay" },
+                { title: "Alchemy crystal singing bowls " },
+                { title: "Deva Munay" },
                 { title: "Produced by Jeff Bhasker" },
                 { title: "Recorded by Greg Morgenstein" },
-                { title: "Death Be Not Proud — recited by Penny" },
                 { title: "Recorded at Ft. Sufi Big Sur 2024" },
-                { title: "Hear360" },
               ]}
               isExpanded
               onToggle={closeAll}
@@ -182,21 +151,18 @@ export default function MenuPage({
                   }`,
                   action: "toggle-hemisphere",
                 },
-                {
-                  title: "Subscribe to newsletter",
-                  action: "subscribe-newsletter",
-                },
+                // {
+                //   title: "Create an Account",
+                //   action: "create-an-account",
+                // },
               ]}
               isExpanded
               onToggle={closeAll}
               closeOnLinkPress={false}
               onSubPress={(_title, link) => {
-                console.log("Settings pressed:", _title, link?.action);
                 if (link?.action === "toggle-hemisphere") {
-                  console.log("Toggling hemisphere");
                   onToggleHemisphere();
                 } else if (link?.action === "subscribe-newsletter") {
-                  console.log("Opening subscribe");
                   onSubscribeOpen();
                 }
               }}
@@ -205,24 +171,24 @@ export default function MenuPage({
 
           {!openMenu && (
             <>
-              {/* <MenuGroup
-                label="Modes"
+              <MenuGroup
+                label="About"
                 links={[]}
                 isExpanded={false}
-                onToggle={() => open("Modes")}
-              /> */}
+                onToggle={() => open("About")}
+              />
               <MenuGroup
                 label="Credits"
                 links={[]}
                 isExpanded={false}
                 onToggle={() => open("Credits")}
               />
-              <MenuGroup
+              {/* <MenuGroup
                 label="Donate"
                 links={[]}
                 isExpanded={false}
                 onToggle={() => open("Donate")}
-              />
+              /> */}
               <MenuGroup
                 label="Settings"
                 links={[]}
@@ -230,7 +196,7 @@ export default function MenuPage({
                 onToggle={() => open("Settings")}
               />
               <MenuGroup
-                label="Community"
+                label="Community (Coming Soon)"
                 links={[]}
                 isExpanded={false}
                 onToggle={() => {
@@ -238,30 +204,13 @@ export default function MenuPage({
                   router.push("/chatboard");
                 }}
               />
-              {aboutEnabled && (
-                <MenuGroup
-                  label="About"
-                  links={[]}
-                  isExpanded={false}
-                  onToggle={() => open("About")}
-                />
-              )}
             </>
-          )}
-
-          {openMenu === "About" && (
-            <MenuGroup
-              label="About"
-              links={[]}
-              isExpanded
-              onToggle={closeAll}
-            />
           )}
         </View>
       </View>
 
       <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-        {openMenu === "About" && (
+        {isAboutOpen && (
           <Pressable
             pointerEvents="auto"
             style={styles.shareButton}
@@ -286,9 +235,10 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 0,
     right: 0,
-    top: "33%",
+    top: "20%",
     alignItems: "center",
     transform: [{ translateY: -10 }],
+    paddingHorizontal: 20,
   },
   menuContainer: {
     flex: 1,
@@ -303,11 +253,6 @@ const styles = StyleSheet.create({
   clickAway: {
     zIndex: 1,
   },
-  centerFill: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   title: {
     fontSize: 36,
     color: "#F7EBD6",
@@ -321,6 +266,16 @@ const styles = StyleSheet.create({
     color: "#D4C7B0",
     marginTop: 4,
     fontFamily: "Spectral_400Regular",
+  },
+  description: {
+    fontSize: 16,
+    color: "#D4C7B0",
+    textAlign: "center",
+    fontFamily: "Spectral_400Regular",
+    lineHeight: 24,
+    marginTop: 20,
+    paddingHorizontal: 12,
+    maxWidth: 350,
   },
   shareButton: {
     position: "absolute",

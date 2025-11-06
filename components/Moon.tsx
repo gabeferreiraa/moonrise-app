@@ -6,6 +6,7 @@ import {
   ImageSourcePropType,
   Pressable,
   StyleSheet,
+  View,
   ViewStyle,
 } from "react-native";
 import { Easing } from "react-native-reanimated";
@@ -36,15 +37,10 @@ type Props = {
   startScale?: number;
   endScale?: number;
   endYOffset?: number;
-
-  /** Tint controls */
-  tintColor?: string;
-  tintOpacity?: number;
-  fadeTintOutAtEnd?: boolean;
 };
 
-const phaseToImage: Record<MoonPhase, ImageSourcePropType> = {
-  new: require("@/assets/images/output/moon_full.png"),
+const phaseToImage: Record<MoonPhase, ImageSourcePropType | null> = {
+  new: null, // No image for new moon (dark moon)
   "waxing-crescent": require("@/assets/images/output/moon_waxing_crescent.png"),
   "first-quarter": require("@/assets/images/output/moon_first_quarter.png"),
   "waxing-gibbous": require("@/assets/images/output/moon_waxing_gibbous.png"),
@@ -54,24 +50,25 @@ const phaseToImage: Record<MoonPhase, ImageSourcePropType> = {
   "waning-crescent": require("@/assets/images/output/moon_waning_crescent.png"),
 };
 
-// FIXED: Use October 7, 2025 full moon as reference
+// Use September 3, 2024 new moon as reference (same as useMoonLocation)
 function phaseIndexFromDate(d: Date): number {
-  // Known full moon: October 7, 2025 at 03:48 UTC
-  const knownFullMoon = new Date("2025-10-07T03:48:00Z");
+  // Known new moon: September 3, 2024 at 01:55 UTC
+  const knownNewMoon = new Date("2024-09-03T01:55:00Z");
   const lunarCycle = 29.53058867;
 
-  const daysFromFullMoon =
-    (d.getTime() - knownFullMoon.getTime()) / (1000 * 60 * 60 * 24);
+  const daysFromNewMoon =
+    (d.getTime() - knownNewMoon.getTime()) / (1000 * 60 * 60 * 24);
 
-  // Calculate position in cycle relative to full moon (full moon = 0.5 in cycle)
-  let cyclePosition = daysFromFullMoon / lunarCycle + 0.5;
+  // Calculate position in cycle (0 = new moon, 0.5 = full moon)
+  let cyclePosition = (daysFromNewMoon / lunarCycle) % 1;
 
   // Normalize to 0-1 range
-  cyclePosition = cyclePosition - Math.floor(cyclePosition);
   if (cyclePosition < 0) cyclePosition += 1;
 
   // Convert to phase index (0-7)
-  return Math.floor(cyclePosition * 8 + 0.5) % 8;
+  const phaseIndex = Math.floor(cyclePosition * 8 + 0.5) % 8;
+
+  return phaseIndex;
 }
 
 const indexToPhase: MoonPhase[] = [
@@ -98,17 +95,16 @@ export default function Moon({
   startScale = 1,
   endScale = 0.35,
   endYOffset = -80,
-
-  tintColor = "#e37a2e",
-  tintOpacity = 0.25,
-  fadeTintOutAtEnd = true,
 }: Props) {
   const [hasStarted, setHasStarted] = useState(false);
 
   const resolvedPhase = useMemo<MoonPhase>(() => {
-    if (phase !== "auto") return phase;
+    if (phase !== "auto") {
+      return phase;
+    }
     const i = phaseIndexFromDate(date);
-    return indexToPhase[i];
+    const calculatedPhase = indexToPhase[i];
+    return calculatedPhase;
   }, [phase, date]);
 
   const source = phaseToImage[resolvedPhase];
@@ -124,6 +120,36 @@ export default function Moon({
   const screenH = Dimensions.get("window").height;
   const startY = screenH * 0.65;
   const endY = endYOffset;
+
+  // If it's a new moon (no image), return a transparent view so background shows through
+  if (source === null) {
+    const EmptyMoon = (
+      <MotiView
+        from={{ opacity: 1, scale: startScale, translateY: startY }}
+        animate={{
+          opacity: 1,
+          scale: hasStarted ? endScale : startScale,
+          translateY: hasStarted ? endY : startY,
+        }}
+        transition={{
+          type: "timing",
+          duration: hasStarted ? glideMs : 0,
+          easing: Easing.linear,
+        }}
+        style={[
+          styles.wrapper,
+          style,
+          { width: size, height: size, backgroundColor: "transparent" },
+        ]}
+      >
+        {/* Empty transparent view for new moon - allows star background to show */}
+        <View style={{ width: size, height: size }} />
+      </MotiView>
+    );
+
+    if (onPress) return <Pressable onPress={onPress}>{EmptyMoon}</Pressable>;
+    return EmptyMoon;
+  }
 
   const MoonContent = (
     <MotiView

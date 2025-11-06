@@ -5,8 +5,6 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
-  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -186,7 +184,6 @@ export default function ChatboardScreen() {
 
       const message = newMessages[0];
 
-      // Optimistically add message to UI immediately
       const optimisticMessage = {
         _id: uuidv4(), // Temporary ID
         text: filter.clean(message.text),
@@ -253,7 +250,6 @@ export default function ChatboardScreen() {
     reason: string
   ) => {
     try {
-      // Insert report record
       await supabase.from("chatboard_reports").insert({
         message_id: messageId,
         reporter_id: userId,
@@ -390,36 +386,31 @@ export default function ChatboardScreen() {
           <ActivityIndicator size="large" color="#6B4FA0" />
         </View>
       ) : (
-        <KeyboardAvoidingView
-          style={styles.chatContainer}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
-        >
-          <GiftedChat
-            messages={messages}
-            onSend={onSend}
-            user={{
-              _id: userId || "",
-              name: userName,
-            }}
-            renderBubble={renderBubble}
-            renderSend={renderSend}
-            renderInputToolbar={renderInputToolbar}
-            placeholder="Share your thoughts..."
-            alwaysShowSend
-            renderUsernameOnMessage
-            maxInputLength={500}
-            textInputProps={{
-              ...styles.textInput,
-              returnKeyType: "send",
-              blurOnSubmit: false,
-              enablesReturnKeyAutomatically: true,
-            }}
-            messagesContainerStyle={styles.messagesContainer}
-            bottomOffset={insets.bottom}
-            minInputToolbarHeight={44}
-          />
-        </KeyboardAvoidingView>
+        <GiftedChat
+          messages={messages}
+          onSend={onSend}
+          user={{
+            _id: userId || "",
+            name: userName,
+          }}
+          renderBubble={renderBubble}
+          renderSend={renderSend}
+          renderInputToolbar={renderInputToolbar}
+          placeholder="Share your thoughts..."
+          alwaysShowSend
+          renderUsernameOnMessage
+          maxInputLength={500}
+          textInputProps={{
+            ...styles.textInput,
+            returnKeyType: "send",
+            blurOnSubmit: false,
+            enablesReturnKeyAutomatically: true,
+          }}
+          messagesContainerStyle={styles.messagesContainer}
+          bottomOffset={insets.bottom}
+          minInputToolbarHeight={44}
+          keyboardShouldPersistTaps="handled"
+        />
       )}
     </SafeAreaView>
   );
@@ -463,10 +454,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#000000",
-  },
-  chatContainer: {
-    flex: 1,
     backgroundColor: "#000000",
   },
   messagesContainer: {

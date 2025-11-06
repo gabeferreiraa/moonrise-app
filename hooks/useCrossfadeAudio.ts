@@ -24,11 +24,15 @@ export default function useCrossfadeAudio(
 
   const [version, setVersion] = useState<Version>(initial);
   const [isReady, setIsReady] = useState(false);
+  const [currentlyPlaying, setCurrentlyPlaying] = useState<Version | null>(
+    null
+  );
 
   const tracksRef = useRef<Map<Version, TrackState>>(new Map());
   const isInitializedRef = useRef(false);
   const isTransitioningRef = useRef(false);
   const fadeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const masterVolumeRef = useRef<number>(1.0);
 
   // Track the sync position for guided/full pair
   const guidedFullPositionRef = useRef<number>(0);
@@ -38,6 +42,26 @@ export default function useCrossfadeAudio(
 
   const isGuidedFullGroup = (ver: Version) =>
     ver === "guided" || ver === "full";
+
+  // Set initial volume for all tracks
+  const setInitialVolume = useCallback(
+    async (volume: number) => {
+      masterVolumeRef.current = Math.max(0, Math.min(1, volume));
+
+      // If a track is currently playing, update its volume
+      if (currentlyPlaying) {
+        const track = tracksRef.current.get(currentlyPlaying);
+        if (track) {
+          try {
+            await track.sound.setVolumeAsync(masterVolumeRef.current);
+          } catch (error) {
+            console.error("Failed to set volume:", error);
+          }
+        }
+      }
+    },
+    [currentlyPlaying]
+  );
 
   // Initialize audio and load all tracks
   useEffect(() => {
@@ -67,7 +91,7 @@ export default function useCrossfadeAudio(
                 { uri: urls[ver] },
                 {
                   shouldPlay: false,
-                  isLooping: true, // loop
+                  isLooping: true,
                   volume: 0,
                   progressUpdateIntervalMillis: 100,
                 }
@@ -88,14 +112,16 @@ export default function useCrossfadeAudio(
 
         const initialTrack = tracksRef.current.get(initial);
         if (initialTrack && autoStart) {
-          await initialTrack.sound.setVolumeAsync(1.0);
+          await initialTrack.sound.setVolumeAsync(masterVolumeRef.current);
           await initialTrack.sound.playAsync();
           initialTrack.hasBeenPlayed = true;
+          setCurrentlyPlaying(initial);
 
           startPositionTracking(initial);
         }
 
         setIsReady(true);
+        console.log("Audio system ready!");
       } catch (error) {
         console.error("Audio init failed:", error);
       }
@@ -145,20 +171,81 @@ export default function useCrossfadeAudio(
   }, []);
 
   const changeVersion = useCallback(
-    async (newVersion: Version) => {
-      if (newVersion === version || isTransitioningRef.current || !isReady) {
+    async (newVersion: Version, startPositionMs?: number) => {
+      // Allow the same version if nothing is playing yet
+      if (isTransitioningRef.current || !isReady) {
+        console.log("Change blocked:", {
+          newVersion,
+          version,
+          isTransitioning: isTransitioningRef.current,
+          isReady,
+        });
+        return;
+      }
+
+      // If trying to set to same version and something is already playing, ignore
+      if (
+        newVersion === currentlyPlaying &&
+        currentlyPlaying !== null &&
+        startPositionMs === undefined
+      ) {
+        console.log("Already playing:", newVersion);
         return;
       }
 
       isTransitioningRef.current = true;
-      console.log(`Transitioning: ${version} → ${newVersion}`);
+      console.log(
+        `Transitioning: ${currentlyPlaying || "none"} → ${newVersion}`
+      );
 
       try {
-        const currentTrack = tracksRef.current.get(version);
         const newTrack = tracksRef.current.get(newVersion);
 
-        if (!currentTrack || !newTrack) {
-          console.error("Track not found");
+        if (!newTrack) {
+          console.error("New track not found");
+          isTransitioningRef.current = false;
+          return;
+        }
+
+        // If nothing is currently playing (autoStart was false)
+        if (currentlyPlaying === null) {
+          console.log(
+            `Starting first track: ${newVersion} at volume ${masterVolumeRef.current}`
+          );
+
+          // Determine starting position for new track
+          let startPosition = startPositionMs ?? 0; // Use provided position or default
+          if (startPositionMs === undefined) {
+            if (isGuidedFullGroup(newVersion)) {
+              startPosition = guidedFullPositionRef.current;
+            } else {
+              startPosition = newTrack.hasBeenPlayed
+                ? newTrack.savedPosition
+                : 0;
+            }
+          }
+
+          await newTrack.sound.setPositionAsync(startPosition);
+          // IMPORTANT: Start at the current master volume, not 0
+          await newTrack.sound.setVolumeAsync(masterVolumeRef.current);
+          await newTrack.sound.playAsync();
+          newTrack.hasBeenPlayed = true;
+
+          setCurrentlyPlaying(newVersion);
+          startPositionTracking(newVersion);
+          setVersion(newVersion);
+          isTransitioningRef.current = false;
+
+          console.log(
+            `Started playing ${newVersion} at volume ${masterVolumeRef.current}!`
+          );
+          return;
+        }
+
+        const currentTrack = tracksRef.current.get(currentlyPlaying);
+
+        if (!currentTrack) {
+          console.error("Current track not found");
           isTransitioningRef.current = false;
           return;
         }
@@ -169,7 +256,7 @@ export default function useCrossfadeAudio(
           currentStatus.isLoaded &&
           currentStatus.positionMillis !== undefined
         ) {
-          if (isGuidedFullGroup(version)) {
+          if (isGuidedFullGroup(currentlyPlaying)) {
             guidedFullPositionRef.current = currentStatus.positionMillis;
           } else {
             currentTrack.savedPosition = currentStatus.positionMillis;
@@ -179,7 +266,10 @@ export default function useCrossfadeAudio(
         // Determine starting position for new track
         let startPosition: number;
 
-        if (isGuidedFullGroup(newVersion)) {
+        if (startPositionMs !== undefined) {
+          // Use explicitly provided position
+          startPosition = startPositionMs;
+        } else if (isGuidedFullGroup(newVersion)) {
           // Guided/Full always use the shared sync position
           startPosition = guidedFullPositionRef.current;
         } else {
@@ -218,8 +308,14 @@ export default function useCrossfadeAudio(
           // Use exponential curve for smoother fade
           const easeProgress = 1 - Math.pow(1 - progress, 3);
 
-          const oldVolume = Math.max(0, 1 - easeProgress);
-          const newVolume = Math.min(1, easeProgress);
+          const oldVolume = Math.max(
+            0,
+            (1 - easeProgress) * masterVolumeRef.current
+          );
+          const newVolume = Math.min(
+            masterVolumeRef.current,
+            easeProgress * masterVolumeRef.current
+          );
 
           try {
             await Promise.all([
@@ -243,6 +339,7 @@ export default function useCrossfadeAudio(
             }
 
             setVersion(newVersion);
+            setCurrentlyPlaying(newVersion);
             isTransitioningRef.current = false;
 
             console.log("Transition complete!");
@@ -253,12 +350,13 @@ export default function useCrossfadeAudio(
         isTransitioningRef.current = false;
       }
     },
-    [version, isReady, fadeMs, startPositionTracking]
+    [version, currentlyPlaying, isReady, fadeMs, startPositionTracking]
   );
 
   return {
     version,
     setVersion: changeVersion,
     isReady,
+    setInitialVolume,
   };
 }
