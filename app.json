@@ -14,6 +14,7 @@
       "bundleIdentifier": "com.kravenworks.moonrise",
       "buildNumber": "1.0.2",
       "infoPlist": {
+        "NSUserNotificationsUsageDescription": "This app uses notifications to remind you to set your daily intention.",
         "ITSAppUsesNonExemptEncryption": false,
         "UIBackgroundModes": ["audio"]
       }
@@ -27,7 +28,9 @@
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
         "FOREGROUND_SERVICE",
-        "WAKE_LOCK"
+        "WAKE_LOCK",
+        "NOTIFICATIONS",
+        "SCHEDULE_EXACT_ALARM"
       ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
@@ -42,6 +45,14 @@
     },
 
     "plugins": [
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/moonrise_final_icon.png",
+          "mode": "production",
+          "enableBackgroundRemoteNotifications": true
+        }
+      ],
       "expo-router",
       [
         "expo-splash-screen",

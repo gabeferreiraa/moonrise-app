@@ -42,6 +42,7 @@
     "expo-task-manager": "~13.1.6",
     "expo-web-browser": "~14.2.0",
     "firebase": "^12.1.0",
+    "googleapis": "^165.0.0",
     "moti": "^0.30.0",
     "react": "19.0.0",
     "react-dom": "19.0.0",

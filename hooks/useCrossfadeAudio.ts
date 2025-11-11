@@ -11,7 +11,7 @@ type Options = {
 
 type TrackState = {
   sound: Audio.Sound;
-  savedPosition: number; // Position in milliseconds
+  savedPosition: number;
   hasBeenPlayed: boolean;
 };
 
@@ -20,7 +20,7 @@ export default function useCrossfadeAudio(
   initial: Version,
   opts: Options = {}
 ) {
-  const { fadeMs = 800, loop = true, autoStart = true } = opts;
+  const { fadeMs = 800, loop = false, autoStart = true } = opts;
 
   const [version, setVersion] = useState<Version>(initial);
   const [isReady, setIsReady] = useState(false);
@@ -91,7 +91,7 @@ export default function useCrossfadeAudio(
                 { uri: urls[ver] },
                 {
                   shouldPlay: false,
-                  isLooping: true,
+                  isLooping: false,
                   volume: 0,
                   progressUpdateIntervalMillis: 100,
                 }

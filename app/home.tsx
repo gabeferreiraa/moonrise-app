@@ -76,7 +76,7 @@ function HomeInner() {
     "guided",
     {
       fadeMs: 1000,
-      loop: true,
+      loop: false,
       autoStart: false,
     }
   );

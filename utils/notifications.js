@@ -1,7 +1,7 @@
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 
-// Configure how notifications should be handled when app is in foreground
+// Foreground presentation behavior
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
@@ -10,62 +10,102 @@ Notifications.setNotificationHandler({
   }),
 });
 
-// Request notification permissions
+// Ask for notification permissions and set Android channel
 export async function requestNotificationPermissions() {
-  let permissionStatus;
-
   if (Platform.OS === "android") {
     await Notifications.setNotificationChannelAsync("daily-reminder", {
       name: "Daily Reminders",
       importance: Notifications.AndroidImportance.MAX,
       vibrationPattern: [0, 250, 250, 250],
       lightColor: "#FF231F7C",
+      sound: true,
+      enableVibrate: true,
+      showBadge: true,
     });
   }
 
   const { status: existingStatus } = await Notifications.getPermissionsAsync();
-  permissionStatus = existingStatus;
+  if (existingStatus === "granted") return existingStatus;
 
-  if (existingStatus !== "granted") {
-    const { status } = await Notifications.requestPermissionsAsync();
-    permissionStatus = status;
-  }
-
-  return permissionStatus;
+  const { status } = await Notifications.requestPermissionsAsync();
+  return status;
 }
 
-// Schedule daily notification at 7pm local time
+// Schedule a daily notification at 7:00 PM
 export async function scheduleDailyReminder() {
-  // Cancel any existing notifications first
-  await cancelAllNotifications();
+  try {
+    await cancelAllNotifications();
 
-  // Calculate time until 7pm today or tomorrow
-  const now = new Date();
-  const scheduledTime = new Date();
-  scheduledTime.setHours(19, 0, 0, 0); // 7pm
+    const baseTrigger = {
+      hour: 19,
+      minute: 0,
+      repeats: true,
+      ...(Platform.OS === "android" ? { channelId: "daily-reminder" } : {}),
+    };
 
-  // If it's already past 7pm today, schedule for tomorrow
-  if (now > scheduledTime) {
-    scheduledTime.setDate(scheduledTime.getDate() + 1);
+    const notificationId = await Notifications.scheduleNotificationAsync({
+      content: {
+        title: "Time to Set Your Intention 🌙",
+        body: "Come set your intention for tonight's Moonrise",
+        sound: true,
+        priority: Notifications.AndroidNotificationPriority.HIGH,
+        data: { screen: "intention", params: { ref: "notif_daily" } },
+      },
+      trigger: baseTrigger,
+    });
+
+    console.log("Scheduled notification with ID:", notificationId);
+    return notificationId;
+  } catch (error) {
+    console.error("Error scheduling daily reminder:", error);
+
+    try {
+      const fallbackTrigger = {
+        seconds: 60 * 60 * 24,
+        repeats: true,
+        ...(Platform.OS === "android" ? { channelId: "daily-reminder" } : {}),
+      };
+
+      const fallbackId = await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "Time to Set Your Intention 🌙",
+          body: "Come set your intention for tonight's Moonrise",
+          sound: true,
+          priority: Notifications.AndroidNotificationPriority.HIGH,
+          data: { screen: "intention", params: { ref: "notif_fallback" } },
+        },
+        trigger: fallbackTrigger,
+      });
+
+      return fallbackId;
+    } catch (fallbackError) {
+      console.error("Fallback scheduling also failed:", fallbackError);
+      throw fallbackError;
+    }
   }
+}
 
+// Schedule a test notification
+export async function scheduleTestNotification(secondsFromNow = 10) {
   const trigger = {
-    hour: 19,
-    minute: 0,
-    repeats: true,
+    seconds: secondsFromNow,
+    repeats: false,
+    ...(Platform.OS === "android" ? { channelId: "daily-reminder" } : {}),
   };
 
-  const notificationId = await Notifications.scheduleNotificationAsync({
+  const id = await Notifications.scheduleNotificationAsync({
     content: {
-      title: "Time to Set Your Intention 🌙",
-      body: "Come set your intention for tonight's Moonrise",
+      title: "Test Notification 🌙",
+      body: "This is a test notification from Moonrise",
       sound: true,
       priority: Notifications.AndroidNotificationPriority.HIGH,
+      data: { screen: "intention", params: { ref: "notif_test" } },
     },
     trigger,
   });
 
-  return notificationId;
+  console.log(`Test notification scheduled in ${secondsFromNow}s`);
+  return id;
 }
 
 // Cancel all notifications
@@ -73,8 +113,18 @@ export async function cancelAllNotifications() {
   await Notifications.cancelAllScheduledNotificationsAsync();
 }
 
-// Get all scheduled notifications (useful for debugging)
+// Get all scheduled notifications
 export async function getScheduledNotifications() {
-  const notifications = await Notifications.getAllScheduledNotificationsAsync();
-  return notifications;
+  return Notifications.getAllScheduledNotificationsAsync();
+}
+
+// Cancel a specific notification
+export async function cancelNotification(notificationId) {
+  await Notifications.cancelScheduledNotificationAsync(notificationId);
+}
+
+// Check if notifications are enabled
+export async function areNotificationsEnabled() {
+  const { status } = await Notifications.getPermissionsAsync();
+  return status === "granted";
 }
