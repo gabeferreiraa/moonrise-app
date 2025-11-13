@@ -1,3 +1,4 @@
+import googleSheetsService, { Announcement } from "@/lib/googleSheetService";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -14,7 +15,6 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
-import googleSheetsService, { Announcement } from "@/lib/googleSheetService";
 
 export default function AnnouncementBoardScreen() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
@@ -127,45 +127,26 @@ export default function AnnouncementBoardScreen() {
     item: Announcement;
     index: number;
   }) => (
-    <View style={[styles.announcementCard, index === 0 && styles.firstCard]}>
-      {index === 0 && announcements.length > 0 && (
-        <View style={styles.latestBadge}>
-          <Text style={styles.latestBadgeText}>NEW</Text>
-        </View>
-      )}
-      <Text style={styles.announcementTitle}>{item.title}</Text>
-      <Text style={styles.announcementDescription}>{item.description}</Text>
-      <View style={styles.announcementFooter}>
-        <Text style={styles.announcementDate}>
-          {formatDate(item.created_at)}
-        </Text>
+    <View style={styles.announcementCard}>
+      <View style={styles.announcementHeader}>
+        <Text style={styles.announcementTitle}>{item.title}</Text>
+        {index === 0 && announcements.length > 0 && (
+          <View style={styles.newIndicator} />
+        )}
       </View>
+      <Text style={styles.announcementDescription}>{item.description}</Text>
+      <Text style={styles.announcementDate}>{formatDate(item.created_at)}</Text>
     </View>
   );
 
   const ListHeader = () => {
-    if (announcements.length === 0) return null;
-
-    return (
-      <View style={styles.listHeader}>
-        <Text style={styles.listHeaderText}>
-          Pull down to refresh • {announcements.length} announcement
-          {announcements.length !== 1 ? "s" : ""}
-        </Text>
-      </View>
-    );
+    return null;
   };
 
   const EmptyComponent = () => (
     <View style={styles.emptyContainer}>
       <Text style={styles.emptyTitle}>No Announcements</Text>
       <Text style={styles.emptyText}>Check back later for updates</Text>
-      <TouchableOpacity
-        style={styles.refreshButton}
-        onPress={() => onRefresh()}
-      >
-        <Text style={styles.refreshButtonText}>Refresh</Text>
-      </TouchableOpacity>
     </View>
   );
 
@@ -188,8 +169,8 @@ export default function AnnouncementBoardScreen() {
       {/* Announcements List */}
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#6B4FA0" />
-          <Text style={styles.loadingText}>Loading announcements...</Text>
+          <ActivityIndicator size="large" color="#DEC4A1" />
+          <Text style={styles.loadingText}>Loading...</Text>
         </View>
       ) : (
         <FlatList
@@ -204,10 +185,10 @@ export default function AnnouncementBoardScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor="#6B4FA0"
-              colors={["#6B4FA0"]}
+              tintColor="#DEC4A1"
+              colors={["#DEC4A1"]}
               title="Pull to refresh"
-              titleColor="#6B4FA0"
+              titleColor="#DEC4A1"
             />
           }
           ListHeaderComponent={ListHeader}
@@ -223,31 +204,31 @@ export default function AnnouncementBoardScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000000",
+    backgroundColor: "#0C0C0C",
   },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#2C2C2E",
-    backgroundColor: "#000000",
+    paddingVertical: 20,
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#DEC4A1",
+    backgroundColor: "#0C0C0C",
   },
   backButton: {
     padding: 8,
     width: 44,
   },
   backButtonText: {
-    fontSize: 32,
-    color: "#F4F2ED",
+    fontSize: 28,
+    color: "#DEC4A1",
     fontWeight: "300",
   },
   headerTitle: {
-    fontSize: 24,
-    fontFamily: "CormorantGaramond_700Bold",
-    color: "#F4F2ED",
+    fontSize: 26,
+    fontFamily: "Lora_400Regular",
+    color: "#E6D2B5",
   },
   syncButton: {
     padding: 8,
@@ -256,118 +237,94 @@ const styles = StyleSheet.create({
   },
   syncButtonText: {
     fontSize: 24,
-    color: "#F4F2ED",
+    color: "#DEC4A1",
   },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#000000",
+    backgroundColor: "#0C0C0C",
   },
   loadingText: {
     marginTop: 16,
     fontSize: 14,
-    color: "#8E8E93",
+    fontFamily: "Lora_400Regular",
+    color: "#CBBCA4",
   },
   listContainer: {
-    paddingHorizontal: 16,
-    paddingBottom: 20,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 40,
   },
   emptyListContainer: {
     flex: 1,
   },
   listHeader: {
-    paddingVertical: 12,
+    paddingBottom: 16,
     alignItems: "center",
   },
   listHeaderText: {
-    fontSize: 12,
-    color: "#8E8E93",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
+    fontSize: 13,
+    fontFamily: "Lora_400Regular",
+    color: "#CBBCA4",
+    letterSpacing: 1,
   },
   announcementCard: {
-    backgroundColor: "#1C1C1E",
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: "#2C2C2E",
-    position: "relative",
+    paddingVertical: 20,
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#DEC4A1",
   },
-  firstCard: {
-    borderColor: "#6B4FA0",
-    borderWidth: 1.5,
-  },
-  latestBadge: {
-    position: "absolute",
-    top: -10,
-    right: 20,
-    backgroundColor: "#6B4FA0",
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  latestBadgeText: {
-    fontSize: 10,
-    color: "#F4F2ED",
-    fontWeight: "700",
-    letterSpacing: 0.5,
+  announcementHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
   },
   announcementTitle: {
-    fontSize: 20,
-    fontFamily: "CormorantGaramond_700Bold",
-    color: "#F4F2ED",
-    marginBottom: 12,
-    lineHeight: 26,
+    fontSize: 22,
+    fontFamily: "Lora_400Regular",
+    color: "#E6D2B5",
+    flex: 1,
+    lineHeight: 28,
+  },
+  newIndicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#FFECCC",
+    marginLeft: 8,
   },
   announcementDescription: {
-    fontSize: 15,
+    fontSize: 16,
+    fontFamily: "Lora_400Regular",
     color: "#CBBCA4",
-    lineHeight: 22,
-    marginBottom: 16,
-  },
-  announcementFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: "#2C2C2E",
+    lineHeight: 24,
+    marginBottom: 12,
   },
   announcementDate: {
     fontSize: 12,
+    fontFamily: "Lora_400Regular",
     color: "#8E8E93",
     fontStyle: "italic",
   },
   separator: {
-    height: 12,
+    height: 0,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    paddingVertical: 50,
+    paddingVertical: 80,
   },
   emptyTitle: {
-    fontSize: 20,
-    fontFamily: "CormorantGaramond_700Bold",
-    color: "#F4F2ED",
+    fontSize: 22,
+    fontFamily: "Spectral_700Bold",
+    color: "#E6D2B5",
     marginBottom: 8,
   },
   emptyText: {
-    fontSize: 14,
-    color: "#8E8E93",
-    marginBottom: 24,
-  },
-  refreshButton: {
-    backgroundColor: "#6B4FA0",
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 20,
-  },
-  refreshButtonText: {
-    color: "#F4F2ED",
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 15,
+    fontFamily: "Lora_400Regular",
+    color: "#CBBCA4",
   },
 });

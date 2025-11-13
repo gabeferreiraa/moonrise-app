@@ -1,8 +1,11 @@
-import { ResizeMode, Video } from "expo-av";
+import { Audio, ResizeMode, Video } from "expo-av";
 import { useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
 import { Animated, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+
+const INTENTION_AUDIO_URL =
+  "https://firebasestorage.googleapis.com/v0/b/moonrise001-5aa1c.firebasestorage.app/o/intention_wheel.m4a?alt=media&token=fc0b4e9c-61c2-45d4-b4fd-085e0f0deea1";
 
 export default function VideoIntroScreen() {
   const router = useRouter();
@@ -10,6 +13,34 @@ export default function VideoIntroScreen() {
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const [hasNavigated, setHasNavigated] = useState(false);
   const [videoStatus, setVideoStatus] = useState("loading");
+  const intentionAudioRef = useRef<Audio.Sound | null>(null);
+  const hasStartedAudioRef = useRef(false);
+
+  const startIntentionAudio = async () => {
+    if (hasStartedAudioRef.current) return;
+    hasStartedAudioRef.current = true;
+
+    try {
+      await Audio.setAudioModeAsync({
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: true,
+      });
+
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: INTENTION_AUDIO_URL },
+        {
+          shouldPlay: true,
+          isLooping: true,
+          volume: 0.2,
+        }
+      );
+
+      intentionAudioRef.current = sound;
+      console.log("Intention audio started from video screen");
+    } catch (error) {
+      console.error("Failed to start intention audio:", error);
+    }
+  };
 
   const handleVideoEnd = () => {
     if (hasNavigated) return;
@@ -20,7 +51,12 @@ export default function VideoIntroScreen() {
       duration: 400,
       useNativeDriver: true,
     }).start(() => {
-      router.replace("/intention");
+      router.replace({
+        pathname: "/intention",
+        params: {
+          audioPreloaded: "true",
+        },
+      });
     });
   };
 
@@ -45,18 +81,14 @@ export default function VideoIntroScreen() {
             volume={1.0}
             onPlaybackStatusUpdate={(status) => {
               if (status.isLoaded) {
-                // Log video progress
-                if (status.positionMillis && status.durationMillis) {
-                  const progress = Math.floor(
-                    (status.positionMillis / status.durationMillis) * 100
-                  );
-                  if (progress % 20 === 0) {
-                    console.log(`Video playing: ${progress}%`);
-                  }
+                // Start intention audio 1 second before video ends
+                const timeRemaining =
+                  (status.durationMillis || 0) - status.positionMillis;
+                if (timeRemaining <= 1000 && timeRemaining > 0) {
+                  startIntentionAudio();
                 }
 
                 if (status.didJustFinish) {
-                  console.log("Video playback finished");
                   handleVideoEnd();
                 }
               } else if ("error" in status) {

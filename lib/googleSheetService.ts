@@ -1,4 +1,3 @@
-// googleSheetsService.ts
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // Your Google Sheets Configuration
