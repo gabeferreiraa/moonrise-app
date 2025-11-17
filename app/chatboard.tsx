@@ -1,3 +1,4 @@
+import googleSheetsService, { Announcement } from "@/lib/googleSheetService";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -14,7 +15,6 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
-import googleSheetsService, { Announcement } from "@/lib/googleSheetService";
 
 export default function AnnouncementBoardScreen() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
@@ -24,11 +24,24 @@ export default function AnnouncementBoardScreen() {
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
-    loadAnnouncements();
+    // Add try/catch wrapper
+    const init = async () => {
+      try {
+        await loadAnnouncements();
+      } catch (error) {
+        console.error("Failed to load announcements on mount:", error);
+        // Don't crash - just set loading to false
+        setLoading(false);
+      }
+    };
+
+    init();
 
     // Set up auto-refresh every 5 minutes
     const interval = setInterval(() => {
-      loadAnnouncements(false);
+      loadAnnouncements(false).catch((err) => {
+        console.error("Auto-refresh failed:", err);
+      });
     }, 5 * 60 * 1000);
 
     return () => {
