@@ -196,7 +196,7 @@ export default function MenuPage({
                 onToggle={() => open("Settings")}
               />
               <MenuGroup
-                label="Community (Coming Soon)"
+                label="Message Board"
                 links={[]}
                 isExpanded={false}
                 onToggle={() => {

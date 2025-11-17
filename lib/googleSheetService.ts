@@ -1,11 +1,10 @@
-// googleSheetsService.ts
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-// Your Google Sheets Configuration
+// Configuration now loaded from .env file
 const GOOGLE_SHEETS_CONFIG = {
-  SHEET_ID: "1NsC-0EIqwpKBYXbAp4ICovEgFaMa5vdujujfCuEcVLY",
-  API_KEY: "AIzaSyBe19xdvqPs6HCXmJkRuvtOn9vSeX1z4xM",
-  RANGE: "Sheet1!A:C", // Columns A (title), B (description), C (created_at)
+  SHEET_ID: process.env.EXPO_PUBLIC_GOOGLE_SHEETS_SHEET_ID!,
+  API_KEY: process.env.EXPO_PUBLIC_GOOGLE_SHEETS_API_KEY!,
+  RANGE: process.env.EXPO_PUBLIC_GOOGLE_SHEETS_RANGE!,
 };
 
 export interface Announcement {
@@ -13,6 +12,7 @@ export interface Announcement {
   title: string;
   description: string;
   created_at: string;
+  image_url?: string; // Optional image URL
 }
 
 class GoogleSheetsService {
@@ -25,6 +25,7 @@ class GoogleSheetsService {
     if (!forceRefresh) {
       const cachedData = await this.getCachedData();
       if (cachedData) {
+        console.log("Returning cached announcements");
         return cachedData;
       }
     }
@@ -32,27 +33,41 @@ class GoogleSheetsService {
     try {
       const url = `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEETS_CONFIG.SHEET_ID}/values/${GOOGLE_SHEETS_CONFIG.RANGE}?key=${GOOGLE_SHEETS_CONFIG.API_KEY}`;
 
+      console.log("Fetching announcements from Google Sheets...");
       const response = await fetch(url);
 
+      // Log the actual error response
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorText = await response.text();
+        console.error("Google Sheets API Error:", {
+          status: response.status,
+          statusText: response.statusText,
+          body: errorText,
+        });
+        throw new Error(
+          `HTTP error! status: ${response.status} - ${errorText}`
+        );
       }
 
       const data = await response.json();
 
       if (!data.values || data.values.length === 0) {
+        console.log("No announcements found in sheet");
         return [];
       }
 
       // Parse the data (first row is headers)
       const [headers, ...rows] = data.values;
 
-      const announcements: Announcement[] = rows.map((row, index) => ({
-        id: `announcement-${Date.now()}-${index}`,
-        title: row[0] || "",
-        description: row[1] || "",
-        created_at: row[2] || new Date().toISOString(),
-      }));
+      const announcements: Announcement[] = rows
+        .filter((row) => row[0] && row[1]) // Filter out empty rows
+        .map((row, index) => ({
+          id: `announcement-${Date.now()}-${index}`,
+          title: row[0] || "",
+          description: row[1] || "",
+          created_at: row[2] || new Date().toISOString(),
+          image_url: row[3] || undefined, // Column D for image URL
+        }));
 
       // Sort by date (newest first)
       announcements.sort((a, b) => {
@@ -60,6 +75,8 @@ class GoogleSheetsService {
         const dateB = new Date(b.created_at).getTime();
         return dateB - dateA;
       });
+
+      console.log(`Successfully fetched ${announcements.length} announcements`);
 
       // Cache the data
       await this.setCachedData(announcements);
