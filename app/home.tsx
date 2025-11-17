@@ -130,92 +130,36 @@ function HomeInner() {
         );
 
         const targetMode = params.audioMode as Version;
-        const startWithGuided = params.startWithGuided === "true";
         const fadeInAudio = params.fadeInAudio === "true";
 
-        // Ensure volume is set to 1 if not fading, in case it was left at 0
+        // Set initial volume based on fade preference
         if (!fadeInAudio) {
           await setInitialVolume(1);
         }
 
-        if (startWithGuided) {
-          // Start playing guided track at position 0 FIRST
-          // Don't set volume to 0 before starting - let it start at default
-          if (!fadeInAudio) {
-            await setInitialVolume(1); // Ensure full volume if not fading
-          }
+        // Start playing the selected track
+        await setVersion(targetMode);
 
-          await setVersion("guided", 0);
+        // If fading in, do the fade AFTER audio has started
+        if (fadeInAudio) {
+          await setInitialVolume(0);
+
+          const fadeInDuration = 2000;
+          const fadeSteps = 20;
+          const stepDuration = fadeInDuration / fadeSteps;
+
+          for (let i = 0; i <= fadeSteps; i++) {
+            const volume = i / fadeSteps;
+            await setInitialVolume(volume);
+            await new Promise((resolve) => setTimeout(resolve, stepDuration));
+          }
+        }
+
+        // Set the guided enabled state based on target mode
+        if (targetMode === "guided") {
           setGuidedEnabled(true);
-
-          // If fading in, do the fade AFTER audio has started
-          if (fadeInAudio) {
-            // Set to 0 AFTER starting playback
-            await setInitialVolume(0);
-
-            const fadeInDuration = 2000; // 2 second fade in
-            const fadeSteps = 20;
-            const stepDuration = fadeInDuration / fadeSteps;
-
-            // Start fade immediately, not after 500ms
-            for (let i = 0; i <= fadeSteps; i++) {
-              const volume = i / fadeSteps;
-              await setInitialVolume(volume);
-              await new Promise((resolve) => setTimeout(resolve, stepDuration));
-            }
-          }
-
-          // Schedule transition to target mode after 142 seconds
-          const transitionDelay = 142000; // 142 seconds delay
-
-          setTimeout(async () => {
-            if (targetMode === "guided") {
-              // Already playing guided, no change needed
-              setGuidedEnabled(true);
-            } else if (targetMode === "full") {
-              // Switch to unguided (full) mode
-              setGuidedEnabled(false);
-              await setVersion("full");
-            } else {
-              // Switch to birth/life/death
-              setGuidedEnabled(false);
-              await setVersion(targetMode);
-            }
-          }, transitionDelay);
         } else {
-          // Start directly with the target mode
-
-          // Don't set volume to 0 before starting - let it start at default
-          if (!fadeInAudio) {
-            await setInitialVolume(1); // Ensure full volume if not fading
-          }
-
-          // Start playing the target track
-          await setVersion(targetMode);
-
-          // If fading in, do the fade AFTER audio has started
-          if (fadeInAudio) {
-            // Set to 0 AFTER starting playback
-            await setInitialVolume(0);
-
-            const fadeInDuration = 2000;
-            const fadeSteps = 20;
-            const stepDuration = fadeInDuration / fadeSteps;
-
-            // Start fade immediately
-            for (let i = 0; i <= fadeSteps; i++) {
-              const volume = i / fadeSteps;
-              await setInitialVolume(volume);
-              await new Promise((resolve) => setTimeout(resolve, stepDuration));
-            }
-          }
-
-          // Set the guided enabled state based on target mode
-          if (targetMode === "guided") {
-            setGuidedEnabled(true);
-          } else {
-            setGuidedEnabled(false);
-          }
+          setGuidedEnabled(false);
         }
 
         // Show subscribe modal if first launch
