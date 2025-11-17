@@ -38,7 +38,6 @@ const AUDIO_URLS: Record<Version, string> = {
     "https://firebasestorage.googleapis.com/v0/b/moonrise001-5aa1c.firebasestorage.app/o/Moonrise_Invocation_With_Birth_32Bit_96kHz.m4a?alt=media&token=2b02efe4-5738-400a-95bf-1efa493174ce",
   death:
     "https://firebasestorage.googleapis.com/v0/b/moonrise001-5aa1c.firebasestorage.app/o/Moonrise_Invocation_With_Death_With_Penny_32Bit_96kHz.m4a?alt=media&token=1a086a17-d34b-4f01-b547-1a81e385eb36",
-  // DEATH IS PLAYING THE SAME AUDIO AS FULL, TALK WITH JEFF OR GREG TO MAKE SURE THIS IS CORRECT
   full: "https://firebasestorage.googleapis.com/v0/b/moonrise001-5aa1c.firebasestorage.app/o/Moonrise_Invocation_With_Death_With_Penny_32Bit_96kHz.m4a?alt=media&token=1a086a17-d34b-4f01-b547-1a81e385eb36",
 };
 
@@ -131,6 +130,8 @@ function HomeInner() {
 
         const targetMode = params.audioMode as Version;
         const fadeInAudio = params.fadeInAudio === "true";
+
+        await new Promise((resolve) => setTimeout(resolve, 500));
 
         // Set initial volume based on fade preference
         if (!fadeInAudio) {
@@ -272,7 +273,7 @@ function HomeInner() {
         <ImageBackground
           source={require("@/assets/images/moonrise_backdrop_block.png")}
           style={styles.starsBackground}
-          resizeMode="stretch" // try "contain" first; switch to "stretch" if you want edge-to-edge
+          resizeMode="stretch"
         />
       )}
       <SafeAreaView
@@ -302,7 +303,7 @@ function HomeInner() {
                 left: 0,
                 right: 0,
                 alignItems: "center",
-                zIndex: 1, // ensure moon is above backdrop
+                zIndex: 1,
               }}
             >
               <Moon

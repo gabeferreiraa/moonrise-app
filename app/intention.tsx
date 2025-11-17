@@ -1,6 +1,6 @@
 import { Picker } from "@react-native-picker/picker";
 import { Audio } from "expo-av";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
@@ -51,11 +51,12 @@ export default function IntentionScreen() {
   const screenFadeAnim = useRef(new Animated.Value(0)).current;
   const blackFadeAnim = useRef(new Animated.Value(0)).current;
   const router = useRouter();
+  const params = useLocalSearchParams();
   const intentionAudioRef = useRef<Audio.Sound | null>(null);
   const isUnmountingRef = useRef(false);
 
   const INTENTION_AUDIO_URL =
-    "https://firebasestorage.googleapis.com/v0/b/moonrise001-5aa1c.firebasestorage.app/o/intentionwheel.m4a?alt=media&token=5b5d4239-8ca0-4be9-a07e-db8f1b1e6220";
+    "https://firebasestorage.googleapis.com/v0/b/moonrise001-5aa1c.firebasestorage.app/o/intentionwheel.m4a?alt=media&token=0bab9f72-a8ad-4829-a801-0a56befb7134";
 
   // Fade in from black when screen loads
   useEffect(() => {
@@ -67,6 +68,12 @@ export default function IntentionScreen() {
   }, []);
 
   useEffect(() => {
+    // Skip audio setup if it was preloaded from video screen
+    if (params.audioPreloaded === "true") {
+      console.log("Audio already preloaded from video screen");
+      return;
+    }
+
     let mounted = true;
     let sound: Audio.Sound | null = null;
 
@@ -83,7 +90,7 @@ export default function IntentionScreen() {
           {
             shouldPlay: false, // Don't play immediately
             isLooping: true,
-            volume: 0.2,
+            volume: 0.5,
           }
         );
 
@@ -122,7 +129,7 @@ export default function IntentionScreen() {
         intentionAudioRef.current.unloadAsync().catch(() => {});
       }
     };
-  }, []);
+  }, [params.audioPreloaded]);
 
   const handleIntentionChange = (value: string) => {
     setSelectedIntention(value);
@@ -156,25 +163,35 @@ export default function IntentionScreen() {
 
     const audioMode = getAudioMode(selectedIntention);
 
+    // Only start with guided for "Extended Experience" or custom intentions
+    const shouldStartWithGuided =
+      selectedIntention === "Extended Experience" || showCustomInput;
+
     setIsTransitioning(true);
     isUnmountingRef.current = true; // Prevent any further audio operations
 
-    // Start a very gradual audio fade (3 seconds)
-    if (intentionAudioRef.current) {
-      const fadeOutDuration = 3000;
-      const fadeSteps = 30;
-      const stepDuration = fadeOutDuration / fadeSteps;
-      const startVolume = 0.2;
+    const audioToFade =
+      params.audioPreloaded === "true"
+        ? null // Audio is playing in background, we'll let it continue
+        : intentionAudioRef.current;
 
-      // Don't await this - let it run in background
-      (async () => {
-        try {
-          const sound = intentionAudioRef.current;
-          if (!sound) return;
+    // Start audio fade (2.4 seconds to match animation) - only if we have a reference
+    const audioFadePromise = audioToFade
+      ? (async () => {
+          const fadeOutDuration = 2400; // Match the total animation duration
+          const fadeSteps = 30;
+          const stepDuration = fadeOutDuration / fadeSteps;
+          const startVolume = 0.5;
 
-          // Check if sound is still loaded before each operation
-          for (let i = fadeSteps; i >= 0; i--) {
-            if (isUnmountingRef.current) {
+          try {
+            const sound = audioToFade;
+            if (!sound) return;
+
+            // Check if sound is still loaded before each operation
+            for (let i = fadeSteps; i >= 0; i--) {
+              // FIXED: Changed condition to stop operations when unmounting
+              if (!isUnmountingRef.current) break;
+
               const status = await sound.getStatusAsync();
               if (!status.isLoaded) break;
 
@@ -182,41 +199,41 @@ export default function IntentionScreen() {
               await sound.setVolumeAsync(volume);
               await new Promise((resolve) => setTimeout(resolve, stepDuration));
             }
-          }
 
-          // Final cleanup if still loaded
-          if (isUnmountingRef.current) {
+            // Final cleanup if still loaded
             const status = await sound.getStatusAsync();
             if (status.isLoaded) {
               await sound.stopAsync();
               await sound.unloadAsync();
             }
+          } catch (error) {
+            // Silently catch errors - component might be unmounted
+            console.log("Audio fade cleanup handled gracefully");
           }
-        } catch (error) {
-          // Silently catch errors - component might be unmounted
-          console.log("Audio fade cleanup handled gracefully");
-        }
-      })();
-    }
+        })()
+      : Promise.resolve();
 
     // Use a gentle fade to black instead of white flash
     Animated.sequence([
       // Fade content out
       Animated.timing(screenFadeAnim, {
         toValue: 0,
-        duration: 2000, // Increased from 1200ms to 2000ms (2 seconds)
+        duration: 2000,
         useNativeDriver: true,
       }),
       // Small pause in black
-      Animated.delay(400), // Increased from 400ms to 600ms
-    ]).start(() => {
+      Animated.delay(400),
+    ]).start(async () => {
+      // Wait for audio fade to complete before navigating
+      await audioFadePromise;
+
       // Navigate after visual transition completes
       router.replace({
         pathname: "/home",
         params: {
           intention: finalIntention,
           audioMode: audioMode,
-          startWithGuided: "true",
+          startWithGuided: shouldStartWithGuided.toString(),
           fadeInAudio: "true",
         },
       });

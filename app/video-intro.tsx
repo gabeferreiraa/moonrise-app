@@ -9,7 +9,9 @@ export default function VideoIntroScreen() {
   const videoRef = useRef<Video>(null);
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const [hasNavigated, setHasNavigated] = useState(false);
-  const [videoStatus, setVideoStatus] = useState("loading");
+  const [videoStatus, setVideoStatus] = useState<
+    "loading" | "playing" | "error"
+  >("loading");
 
   const handleVideoEnd = () => {
     if (hasNavigated) return;
@@ -46,7 +48,11 @@ export default function VideoIntroScreen() {
             onPlaybackStatusUpdate={(status) => {
               if (status.isLoaded) {
                 // Log video progress
-                if (status.positionMillis && status.durationMillis) {
+                if (
+                  typeof status.positionMillis === "number" &&
+                  typeof status.durationMillis === "number" &&
+                  status.durationMillis > 0
+                ) {
                   const progress = Math.floor(
                     (status.positionMillis / status.durationMillis) * 100
                   );

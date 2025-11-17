@@ -32,6 +32,8 @@ import { supabase } from "../lib/supabase";
 
 const REPORT_THRESHOLD = 3;
 const IDLE_MS = 5000; // Time before page indicator fades out
+const DEVA_AVATAR_URI =
+  "https://firebasestorage.googleapis.com/v0/b/moonrise001-5aa1c.firebasestorage.app/o/IMG_6681.JPG?alt=media&token=883809be-5cae-43fe-8fad-1a552e28009d";
 
 interface ChatMessage {
   _id: string;
@@ -437,12 +439,16 @@ export default function CombinedChatBoardScreen() {
   }) => (
     <View style={styles.messageWrapper}>
       <View style={styles.avatarCircle}>
-        <Text style={styles.avatarText}>📢</Text>
+        <Image
+          source={{ uri: DEVA_AVATAR_URI }}
+          style={styles.avatarImage}
+          resizeMode="cover"
+        />
       </View>
       <View style={styles.messageBubbleContainer}>
         <View style={styles.announcementCard}>
           <View style={styles.messageHeader}>
-            <Text style={styles.senderName}>Moonrise Team</Text>
+            <Text style={styles.senderName}>Deva Munay</Text>
             {index === 0 && announcements.length > 0 && (
               <View style={styles.newIndicator}>
                 <Text style={styles.newIndicatorText}>NEW</Text>
@@ -959,5 +965,10 @@ const styles = StyleSheet.create({
   dotActive: {
     opacity: 1,
     backgroundColor: "#E6D2B5",
+  },
+  avatarImage: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 22, // same as avatarCircle radius
   },
 });
