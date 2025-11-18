@@ -27,7 +27,7 @@ export const INTENTIONS = [
   "Balance",
   "Renewal",
   "Confidence",
-  "Donuts 🍩",
+  "Donuts",
   "Nada Yoga",
   "Joy!",
   "Generosity",
@@ -42,22 +42,38 @@ export const INTENTIONS = [
 
 type Version = "full" | "guided" | "birth" | "life" | "death";
 
+const ALWAYS_GUIDED_INTENTIONS = ["Extended Experience", "Custom..."] as const;
+const NON_SPECIAL_INTENTIONS = INTENTIONS.filter(
+  (item) => !ALWAYS_GUIDED_INTENTIONS.includes(item)
+);
+const MODE_SEQUENCE: Version[] = ["birth", "life", "death"];
+
+const getAudioModeForIntention = (intention: string): Version => {
+  if (ALWAYS_GUIDED_INTENTIONS.includes(intention as any)) {
+    return "guided";
+  }
+
+  const index = NON_SPECIAL_INTENTIONS.indexOf(intention);
+  if (index === -1) return "guided";
+
+  return MODE_SEQUENCE[index % MODE_SEQUENCE.length];
+};
+
+const INTENTION_AUDIO_URL =
+  "https://firebasestorage.googleapis.com/v0/b/moonrise001-5aa1c.firebasestorage.app/o/intentionwheel.m4a?alt=media&token=5b5d4239-8ca0-4be9-a07e-db8f1b1e6220";
+
 export default function IntentionScreen() {
   const [selectedIntention, setSelectedIntention] = useState(INTENTIONS[0]);
   const [customIntention, setCustomIntention] = useState("");
   const [showCustomInput, setShowCustomInput] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
-  const cycleIndexRef = useRef(0);
+
   const screenFadeAnim = useRef(new Animated.Value(0)).current;
-  const blackFadeAnim = useRef(new Animated.Value(0)).current;
-  const router = useRouter();
   const intentionAudioRef = useRef<Audio.Sound | null>(null);
   const isUnmountingRef = useRef(false);
+  const router = useRouter();
 
-  const INTENTION_AUDIO_URL =
-    "https://firebasestorage.googleapis.com/v0/b/moonrise001-5aa1c.firebasestorage.app/o/intentionwheel.m4a?alt=media&token=5b5d4239-8ca0-4be9-a07e-db8f1b1e6220";
-
-  // Fade in from black when screen loads
+  // Fade in on mount
   useEffect(() => {
     Animated.timing(screenFadeAnim, {
       toValue: 1,
@@ -66,8 +82,8 @@ export default function IntentionScreen() {
     }).start();
   }, []);
 
+  // Setup looping background audio
   useEffect(() => {
-    let mounted = true;
     let sound: Audio.Sound | null = null;
 
     const setupAudio = async () => {
@@ -77,27 +93,13 @@ export default function IntentionScreen() {
           staysActiveInBackground: true,
         });
 
-        // Create and load the sound with shouldPlay: true to start immediately
         const { sound: newSound } = await Audio.Sound.createAsync(
           { uri: INTENTION_AUDIO_URL },
-          {
-            shouldPlay: true, // Changed from false to true - starts playing as soon as possible
-            isLooping: true,
-            volume: 0.5,
-          }
+          { isLooping: true, volume: 0.5, shouldPlay: true }
         );
-
-        if (!mounted) {
-          // Component unmounted while loading
-          await newSound.unloadAsync();
-          return;
-        }
 
         sound = newSound;
         intentionAudioRef.current = newSound;
-
-        // No need to check status and play manually anymore since shouldPlay: true
-        // The audio will start as soon as enough data is buffered
       } catch (error) {
         console.error("Failed to load intention audio:", error);
       }
@@ -105,18 +107,10 @@ export default function IntentionScreen() {
 
     setupAudio();
 
-    // Cleanup when component unmounts
     return () => {
-      mounted = false;
       isUnmountingRef.current = true;
-
-      // Clean up the audio
       if (sound) {
-        sound.stopAsync().catch(() => {});
         sound.unloadAsync().catch(() => {});
-      } else if (intentionAudioRef.current) {
-        intentionAudioRef.current.stopAsync().catch(() => {});
-        intentionAudioRef.current.unloadAsync().catch(() => {});
       }
     };
   }, []);
@@ -131,88 +125,64 @@ export default function IntentionScreen() {
     }
   };
 
-  const getAudioMode = (intention: string): Version => {
-    // Only "Extended Experience" and "Custom..." play guided
-    if (intention === "Extended Experience" || showCustomInput) {
-      return "guided";
-    }
-
-    // Everything else cycles through birth, life, death
-    const modes: Version[] = ["birth", "life", "death"];
-    const mode = modes[cycleIndexRef.current % 3];
-    cycleIndexRef.current += 1;
-
-    return mode;
-  };
-
   const handleConfirm = async () => {
+    if (isTransitioning) return;
+
     const finalIntention =
       showCustomInput && customIntention.trim()
         ? customIntention.trim()
         : selectedIntention;
 
-    const audioMode = getAudioMode(selectedIntention);
+    const audioMode: Version = showCustomInput
+      ? "guided"
+      : getAudioModeForIntention(selectedIntention);
 
     setIsTransitioning(true);
-    isUnmountingRef.current = true; // Prevent any further audio operations
+    isUnmountingRef.current = true;
 
-    // Start a very gradual audio fade (3 seconds)
+    // Fade out background audio smoothly
     if (intentionAudioRef.current) {
-      const fadeOutDuration = 3000;
-      const fadeSteps = 30;
-      const stepDuration = fadeOutDuration / fadeSteps;
-      const startVolume = 0.2;
-
-      // Don't await this - let it run in background
-      (async () => {
+      Animated.timing(new Animated.Value(0.5), {
+        toValue: 0,
+        duration: 2500,
+        useNativeDriver: false,
+      }).start(async () => {
         try {
-          const sound = intentionAudioRef.current;
-          if (!sound) return;
-
-          // Check if sound is still loaded before each operation
-          for (let i = fadeSteps; i >= 0; i--) {
-            if (isUnmountingRef.current) {
-              const status = await sound.getStatusAsync();
-              if (!status.isLoaded) break;
-
-              const volume = (startVolume * i) / fadeSteps;
-              await sound.setVolumeAsync(volume);
-              await new Promise((resolve) => setTimeout(resolve, stepDuration));
-            }
-          }
-
-          // Final cleanup if still loaded
-          if (isUnmountingRef.current) {
-            const status = await sound.getStatusAsync();
-            if (status.isLoaded) {
-              await sound.stopAsync();
-              await sound.unloadAsync();
-            }
-          }
-        } catch (error) {
-          // Silently catch errors - component might be unmounted
-          console.log("Audio fade cleanup handled gracefully");
+          await intentionAudioRef.current?.setVolumeAsync(0);
+          await intentionAudioRef.current?.stopAsync();
+          await intentionAudioRef.current?.unloadAsync();
+        } catch (e) {
+          // Ignore errors during cleanup
         }
-      })();
+      });
+
+      // Animate volume down using Animated value
+      const volumeAnim = new Animated.Value(0.5);
+      volumeAnim.addListener(({ value }) => {
+        intentionAudioRef.current?.setVolumeAsync(value).catch(() => {});
+      });
+
+      Animated.timing(volumeAnim, {
+        toValue: 0,
+        duration: 2500,
+        useNativeDriver: false,
+      }).start();
     }
 
-    // Use a gentle fade to black instead of white flash
+    // Fade out screen and navigate
     Animated.sequence([
-      // Fade content out
       Animated.timing(screenFadeAnim, {
         toValue: 0,
-        duration: 2000, // Increased from 1200ms to 2000ms (2 seconds)
+        duration: 2000,
         useNativeDriver: true,
       }),
-      // Small pause in black
-      Animated.delay(400), // Increased from 400ms to 600ms
+      Animated.delay(400),
     ]).start(() => {
-      // Navigate after visual transition completes
       router.replace({
         pathname: "/home",
         params: {
           intention: finalIntention,
-          audioMode: audioMode,
+          audioMode,
           startWithGuided: "true",
           fadeInAudio: "true",
         },
@@ -223,12 +193,7 @@ export default function IntentionScreen() {
   return (
     <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
       <Animated.View
-        style={[
-          styles.contentWrapper,
-          {
-            opacity: screenFadeAnim,
-          },
-        ]}
+        style={[styles.contentWrapper, { opacity: screenFadeAnim }]}
       >
         <View style={styles.content}>
           <Text style={styles.title}>Set Your Intention</Text>
@@ -236,13 +201,13 @@ export default function IntentionScreen() {
             What would you like to invite into this moment?
           </Text>
 
-          {/* Picker */}
           <View style={styles.pickerContainer}>
             <Picker
               selectedValue={selectedIntention}
               onValueChange={handleIntentionChange}
               style={styles.picker}
               itemStyle={styles.pickerItem}
+              dropdownIconColor="#FFECCC"
             >
               {INTENTIONS.map((intention) => (
                 <Picker.Item
@@ -255,7 +220,6 @@ export default function IntentionScreen() {
             </Picker>
           </View>
 
-          {/* Custom Input */}
           {showCustomInput && (
             <View style={styles.customInputContainer}>
               <TextInput
@@ -271,7 +235,6 @@ export default function IntentionScreen() {
             </View>
           )}
 
-          {/* Buttons */}
           <View style={styles.buttonContainer}>
             <TouchableOpacity
               style={[styles.button, styles.confirmButton]}
@@ -308,8 +271,8 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 32,
-    fontFamily: "Lora_400Regular",
     fontWeight: "600",
+    fontFamily: "Lora_400Regular",
     color: "#FFECCC",
     marginBottom: 12,
     textAlign: "center",
@@ -353,7 +316,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 18,
     fontSize: 17,
-    fontFamily: "System",
     color: "#FFECCC",
     borderWidth: 1,
     borderColor: "#A0B5A8",
@@ -377,7 +339,6 @@ const styles = StyleSheet.create({
   confirmButtonText: {
     fontSize: 17,
     color: "#0C0C0C",
-    fontFamily: "System",
     fontWeight: "600",
   },
 });
