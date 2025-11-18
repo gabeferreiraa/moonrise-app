@@ -122,6 +122,9 @@ export default function MenuGroup({
               const isSelected = isItemSelected(id);
               const itemColor = getItemColor(id, isSelected);
 
+              // Check if this is the Credits menu (no stagger for credits)
+              const isCredits = label === "Credits";
+
               return (
                 <MotiView
                   key={link.title + i}
@@ -132,7 +135,7 @@ export default function MenuGroup({
                     type: "timing",
                     duration: 220,
                     easing: Easing.out(Easing.cubic),
-                    delay: i * 60,
+                    delay: isCredits ? 0 : i * 60,
                   }}
                   style={{ alignSelf: "center", marginBottom: 10 }}
                 >

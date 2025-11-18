@@ -77,13 +77,13 @@ export default function IntentionScreen() {
           staysActiveInBackground: true,
         });
 
-        // Create and load the sound
+        // Create and load the sound with shouldPlay: true to start immediately
         const { sound: newSound } = await Audio.Sound.createAsync(
           { uri: INTENTION_AUDIO_URL },
           {
-            shouldPlay: false, // Don't play immediately
+            shouldPlay: true, // Changed from false to true - starts playing as soon as possible
             isLooping: true,
-            volume: 0.2,
+            volume: 0.5,
           }
         );
 
@@ -96,11 +96,8 @@ export default function IntentionScreen() {
         sound = newSound;
         intentionAudioRef.current = newSound;
 
-        // Wait for the sound to be fully loaded before playing
-        const status = await newSound.getStatusAsync();
-        if (status.isLoaded && mounted && !isUnmountingRef.current) {
-          await newSound.playAsync();
-        }
+        // No need to check status and play manually anymore since shouldPlay: true
+        // The audio will start as soon as enough data is buffered
       } catch (error) {
         console.error("Failed to load intention audio:", error);
       }

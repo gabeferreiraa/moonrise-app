@@ -79,7 +79,7 @@ export default function MenuPage({
       <MotiView
         from={{ opacity: 0 }}
         animate={{ opacity: showTitle ? 1 : 0 }}
-        transition={{ type: "timing", duration: 300 }}
+        transition={{ type: "timing", duration: showTitle ? 300 : 200 }}
         style={styles.titleContainer}
         pointerEvents="none"
       >
@@ -235,7 +235,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 0,
     right: 0,
-    top: "20%",
+    top: "30%",
     alignItems: "center",
     transform: [{ translateY: -10 }],
     paddingHorizontal: 20,

@@ -32,14 +32,14 @@ type Version = "guided" | "birth" | "life" | "death" | "full";
 
 const AUDIO_URLS: Record<Version, string> = {
   guided:
-    "https://firebasestorage.googleapis.com/v0/b/moonrise001-5aa1c.firebasestorage.app/o/Moonrise_Invocation_With_Death_No_Penny_32Bit_96kHz.m4a?alt=media&token=ac51c3c1-4154-4f93-b2a4-4ec0eb984428",
-  life: "https://firebasestorage.googleapis.com/v0/b/moonrise001-5aa1c.firebasestorage.app/o/Moonrise_Invocation_With_Life_32Bit_96kHz.m4a?alt=media&token=ad8c870e-f722-43ee-a91d-024d7bb75106",
+    "https://firebasestorage.googleapis.com/v0/b/moonrise001-5aa1c.firebasestorage.app/o/Moonrise_Invocation_With_Death_No_Penny_32Bit_96kHz.m4a?alt=media&token=cc08942a-82ee-44bb-b45e-2cd774f83132",
+  life: "https://firebasestorage.googleapis.com/v0/b/moonrise001-5aa1c.firebasestorage.app/o/Moonrise_Invocation_With_Life_32Bit_96kHz.m4a?alt=media&token=5a9a9d9a-0d56-451b-9145-2e5b94cf5220",
   birth:
-    "https://firebasestorage.googleapis.com/v0/b/moonrise001-5aa1c.firebasestorage.app/o/Moonrise_Invocation_With_Birth_32Bit_96kHz.m4a?alt=media&token=2b02efe4-5738-400a-95bf-1efa493174ce",
+    "https://firebasestorage.googleapis.com/v0/b/moonrise001-5aa1c.firebasestorage.app/o/Moonrise_Invocation_With_Birth_32Bit_96kHz.m4a?alt=media&token=761fd9ba-26f9-445d-b6da-264201adc76b",
   death:
-    "https://firebasestorage.googleapis.com/v0/b/moonrise001-5aa1c.firebasestorage.app/o/Moonrise_Invocation_With_Death_With_Penny_32Bit_96kHz.m4a?alt=media&token=1a086a17-d34b-4f01-b547-1a81e385eb36",
+    "https://firebasestorage.googleapis.com/v0/b/moonrise001-5aa1c.firebasestorage.app/o/Moonrise_Invocation_With_Death_With_Penny_32Bit_96kHz.m4a?alt=media&token=3723d241-d1a4-469c-b1e1-480780258fb7",
   // DEATH IS PLAYING THE SAME AUDIO AS FULL, TALK WITH JEFF OR GREG TO MAKE SURE THIS IS CORRECT
-  full: "https://firebasestorage.googleapis.com/v0/b/moonrise001-5aa1c.firebasestorage.app/o/Moonrise_Invocation_With_Death_With_Penny_32Bit_96kHz.m4a?alt=media&token=1a086a17-d34b-4f01-b547-1a81e385eb36",
+  full: "https://firebasestorage.googleapis.com/v0/b/moonrise001-5aa1c.firebasestorage.app/o/Moonrise_Invocation_With_Death_With_Penny_32Bit_96kHz.m4a?alt=media&token=3723d241-d1a4-469c-b1e1-480780258fb7",
 };
 
 const FIRST_LAUNCH_KEY = "@moonrise_first_launch";
@@ -85,7 +85,7 @@ function HomeInner() {
   useEffect(() => {
     // Check if we should fade in from intention screen
     const fadeInAudio = params.fadeInAudio === "true";
-    const initialDelay = fadeInAudio ? 200 : 600; // Shorter delay if coming from intention
+    const initialDelay = fadeInAudio ? 100 : 600; // Shorter delay if coming from intention
 
     const timer = setTimeout(() => {
       Animated.timing(screenOpacity, {
@@ -125,96 +125,40 @@ function HomeInner() {
       ) {
         hasStartedAudioRef.current = true;
 
-        console.log(
-          `Received intention: ${params.intention}, Playing: ${params.audioMode}`
-        );
-
-        const targetMode = params.audioMode as Version;
-        const startWithGuided = params.startWithGuided === "true";
+        const audioModeParam = String(params.audioMode).toLowerCase();
         const fadeInAudio = params.fadeInAudio === "true";
 
-        // Ensure volume is set to 1 if not fading, in case it was left at 0
+        console.log(
+          `Received intention: ${params.intention}, Playing: ${audioModeParam}`
+        );
+
+        // If we're not fading in, make sure volume is at full before starting
         if (!fadeInAudio) {
           await setInitialVolume(1);
         }
 
-        if (startWithGuided) {
-          // Start playing guided track at position 0 FIRST
-          // Don't set volume to 0 before starting - let it start at default
-          if (!fadeInAudio) {
-            await setInitialVolume(1); // Ensure full volume if not fading
-          }
-
-          await setVersion("guided", 0);
-          setGuidedEnabled(true);
-
-          // If fading in, do the fade AFTER audio has started
-          if (fadeInAudio) {
-            // Set to 0 AFTER starting playback
-            await setInitialVolume(0);
-
-            const fadeInDuration = 2000; // 2 second fade in
-            const fadeSteps = 20;
-            const stepDuration = fadeInDuration / fadeSteps;
-
-            // Start fade immediately, not after 500ms
-            for (let i = 0; i <= fadeSteps; i++) {
-              const volume = i / fadeSteps;
-              await setInitialVolume(volume);
-              await new Promise((resolve) => setTimeout(resolve, stepDuration));
-            }
-          }
-
-          // Schedule transition to target mode after 142 seconds
-          const transitionDelay = 142000; // 142 seconds delay
-
-          setTimeout(async () => {
-            if (targetMode === "guided") {
-              // Already playing guided, no change needed
-              setGuidedEnabled(true);
-            } else if (targetMode === "full") {
-              // Switch to unguided (full) mode
-              setGuidedEnabled(false);
-              await setVersion("full");
-            } else {
-              // Switch to birth/life/death
-              setGuidedEnabled(false);
-              await setVersion(targetMode);
-            }
-          }, transitionDelay);
+        // Map "unguided" selection to the full (music-only) track
+        if (audioModeParam === "unguided") {
+          setGuidedEnabled(false);
+          await setVersion("full");
         } else {
-          // Start directly with the target mode
-
-          // Don't set volume to 0 before starting - let it start at default
-          if (!fadeInAudio) {
-            await setInitialVolume(1); // Ensure full volume if not fading
-          }
-
-          // Start playing the target track
+          const targetMode = audioModeParam as Version;
           await setVersion(targetMode);
+          setGuidedEnabled(targetMode === "guided");
+        }
 
-          // If fading in, do the fade AFTER audio has started
-          if (fadeInAudio) {
-            // Set to 0 AFTER starting playback
-            await setInitialVolume(0);
+        // Optional fade-in after starting the selected track
+        if (fadeInAudio) {
+          await setInitialVolume(0);
 
-            const fadeInDuration = 2000;
-            const fadeSteps = 20;
-            const stepDuration = fadeInDuration / fadeSteps;
+          const fadeInDuration = 2000;
+          const fadeSteps = 20;
+          const stepDuration = fadeInDuration / fadeSteps;
 
-            // Start fade immediately
-            for (let i = 0; i <= fadeSteps; i++) {
-              const volume = i / fadeSteps;
-              await setInitialVolume(volume);
-              await new Promise((resolve) => setTimeout(resolve, stepDuration));
-            }
-          }
-
-          // Set the guided enabled state based on target mode
-          if (targetMode === "guided") {
-            setGuidedEnabled(true);
-          } else {
-            setGuidedEnabled(false);
+          for (let i = 0; i <= fadeSteps; i++) {
+            const volume = i / fadeSteps;
+            await setInitialVolume(volume);
+            await new Promise((resolve) => setTimeout(resolve, stepDuration));
           }
         }
 
