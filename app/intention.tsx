@@ -1,5 +1,6 @@
+// app/intention.tsx
+import { intentionAudio } from "@/audio/intentionAudio";
 import { Picker } from "@react-native-picker/picker";
-import { Audio } from "expo-av";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -12,6 +13,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+// All intentions as a readonly tuple → perfect literal types
 export const INTENTIONS = [
   "Extended Experience",
   "Clarity",
@@ -38,42 +40,47 @@ export const INTENTIONS = [
   "Focus",
   "Patience",
   "Custom...",
-];
+] as const;
+
+type Intention = (typeof INTENTIONS)[number];
 
 type Version = "full" | "guided" | "birth" | "life" | "death";
 
+// These are the only ones that always force guided mode
 const ALWAYS_GUIDED_INTENTIONS = ["Extended Experience", "Custom..."] as const;
+type AlwaysGuidedIntention = (typeof ALWAYS_GUIDED_INTENTIONS)[number];
+
+// Helper: is this intention one that forces guided mode?
+const isAlwaysGuided = (
+  intention: Intention
+): intention is AlwaysGuidedIntention =>
+  ALWAYS_GUIDED_INTENTIONS.includes(intention as AlwaysGuidedIntention);
+
+// All non-special intentions (for cycling birth/life/death)
 const NON_SPECIAL_INTENTIONS = INTENTIONS.filter(
-  (item) => !ALWAYS_GUIDED_INTENTIONS.includes(item)
-);
-const MODE_SEQUENCE: Version[] = ["birth", "life", "death"];
+  (i) => !ALWAYS_GUIDED_INTENTIONS.includes(i as any)
+) as readonly Exclude<Intention, AlwaysGuidedIntention>[];
 
-const getAudioModeForIntention = (intention: string): Version => {
-  if (ALWAYS_GUIDED_INTENTIONS.includes(intention as any)) {
-    return "guided";
-  }
+const MODE_SEQUENCE: readonly Version[] = ["birth", "life", "death"] as const;
 
-  const index = NON_SPECIAL_INTENTIONS.indexOf(intention);
-  if (index === -1) return "guided";
+const getAudioModeForIntention = (intention: Intention): Version => {
+  if (isAlwaysGuided(intention)) return "guided";
 
+  const index = NON_SPECIAL_INTENTIONS.indexOf(intention as any);
   return MODE_SEQUENCE[index % MODE_SEQUENCE.length];
 };
 
-const INTENTION_AUDIO_URL =
-  "https://firebasestorage.googleapis.com/v0/b/moonrise001-5aa1c.firebasestorage.app/o/intentionwheel.m4a?alt=media&token=5b5d4239-8ca0-4be9-a07e-db8f1b1e6220";
-
 export default function IntentionScreen() {
-  const [selectedIntention, setSelectedIntention] = useState(INTENTIONS[0]);
+  const [selectedIntention, setSelectedIntention] = useState<Intention>(
+    INTENTIONS[0]
+  );
   const [customIntention, setCustomIntention] = useState("");
   const [showCustomInput, setShowCustomInput] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
 
   const screenFadeAnim = useRef(new Animated.Value(0)).current;
-  const intentionAudioRef = useRef<Audio.Sound | null>(null);
-  const isUnmountingRef = useRef(false);
   const router = useRouter();
 
-  // Fade in on mount
   useEffect(() => {
     Animated.timing(screenFadeAnim, {
       toValue: 1,
@@ -82,47 +89,10 @@ export default function IntentionScreen() {
     }).start();
   }, []);
 
-  // Setup looping background audio
-  useEffect(() => {
-    let sound: Audio.Sound | null = null;
-
-    const setupAudio = async () => {
-      try {
-        await Audio.setAudioModeAsync({
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: true,
-        });
-
-        const { sound: newSound } = await Audio.Sound.createAsync(
-          { uri: INTENTION_AUDIO_URL },
-          { isLooping: true, volume: 0.5, shouldPlay: true }
-        );
-
-        sound = newSound;
-        intentionAudioRef.current = newSound;
-      } catch (error) {
-        console.error("Failed to load intention audio:", error);
-      }
-    };
-
-    setupAudio();
-
-    return () => {
-      isUnmountingRef.current = true;
-      if (sound) {
-        sound.unloadAsync().catch(() => {});
-      }
-    };
-  }, []);
-
-  const handleIntentionChange = (value: string) => {
+  const handleIntentionChange = (value: Intention) => {
     setSelectedIntention(value);
-    if (value === "Custom...") {
-      setShowCustomInput(true);
-    } else {
-      setShowCustomInput(false);
-      setCustomIntention("");
-    }
+    setShowCustomInput(value === "Custom...");
+    if (value !== "Custom...") setCustomIntention("");
   };
 
   const handleConfirm = async () => {
@@ -138,46 +108,16 @@ export default function IntentionScreen() {
       : getAudioModeForIntention(selectedIntention);
 
     setIsTransitioning(true);
-    isUnmountingRef.current = true;
 
-    // Fade out background audio smoothly
-    if (intentionAudioRef.current) {
-      Animated.timing(new Animated.Value(0.5), {
-        toValue: 0,
-        duration: 2500,
-        useNativeDriver: false,
-      }).start(async () => {
-        try {
-          await intentionAudioRef.current?.setVolumeAsync(0);
-          await intentionAudioRef.current?.stopAsync();
-          await intentionAudioRef.current?.unloadAsync();
-        } catch (e) {
-          // Ignore errors during cleanup
-        }
-      });
-
-      // Animate volume down using Animated value
-      const volumeAnim = new Animated.Value(0.5);
-      volumeAnim.addListener(({ value }) => {
-        intentionAudioRef.current?.setVolumeAsync(value).catch(() => {});
-      });
-
-      Animated.timing(volumeAnim, {
-        toValue: 0,
-        duration: 2500,
-        useNativeDriver: false,
-      }).start();
-    }
+    // Fade out the looping wheel
+    await intentionAudio.fadeOut(2500);
 
     // Fade out screen and navigate
-    Animated.sequence([
-      Animated.timing(screenFadeAnim, {
-        toValue: 0,
-        duration: 2000,
-        useNativeDriver: true,
-      }),
-      Animated.delay(400),
-    ]).start(() => {
+    Animated.timing(screenFadeAnim, {
+      toValue: 0,
+      duration: 800,
+      useNativeDriver: true,
+    }).start(() => {
       router.replace({
         pathname: "/home",
         params: {
@@ -250,6 +190,7 @@ export default function IntentionScreen() {
   );
 }
 
+// ← Styles exactly the same as before (unchanged)
 const styles = StyleSheet.create({
   container: {
     flex: 1,

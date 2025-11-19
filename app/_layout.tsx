@@ -1,16 +1,16 @@
+import { NotificationManager } from "@/components/NotificationManager"; // Add this import
+import { useColorScheme } from "@/hooks/useColorScheme";
 import {
   DarkTheme,
   DefaultTheme,
   ThemeProvider,
 } from "@react-navigation/native";
+import { Audio } from "expo-av";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import "react-native-reanimated";
-
-import { NotificationManager } from "@/components/NotificationManager"; // Add this import
-import { useColorScheme } from "@/hooks/useColorScheme";
 
 import { Lora_400Regular, useFonts as useLora } from "@expo-google-fonts/lora";
 import {
@@ -20,6 +20,14 @@ import {
 } from "@expo-google-fonts/spectral";
 
 import { SafeAreaProvider } from "react-native-safe-area-context";
+
+declare global {
+  var __globalIntentionSound: Audio.Sound | null;
+  var __intentionAudioStarted: boolean;
+}
+
+global.__globalIntentionSound ||= null;
+global.__intentionAudioStarted ||= false;
 
 // Keep splash screen visible while loading fonts
 SplashScreen.preventAutoHideAsync();

@@ -1,112 +1,92 @@
-import { ResizeMode, Video } from "expo-av";
+// app/video-intro.tsx (or wherever your intro screen is)
+import { intentionAudio } from "@/audio/intentionAudio";
+import { AVPlaybackStatus, ResizeMode, Video } from "expo-av";
 import { useRouter } from "expo-router";
-import React, { useRef, useState } from "react";
-import { Animated, StyleSheet, View } from "react-native";
+import React, { useEffect, useRef } from "react";
+import { Animated, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function VideoIntroScreen() {
   const router = useRouter();
   const videoRef = useRef<Video>(null);
   const fadeAnim = useRef(new Animated.Value(1)).current;
-  const [hasNavigated, setHasNavigated] = useState(false);
-  const [videoStatus, setVideoStatus] = useState("loading");
 
-  const handleVideoEnd = () => {
-    if (hasNavigated) return;
-    setHasNavigated(true);
+  // Use refs to prevent any state-based re-renders from interfering
+  const hasStartedAudio = useRef(false);
+  const hasNavigated = useRef(false);
 
-    Animated.timing(fadeAnim, {
-      toValue: 0,
-      duration: 400,
-      useNativeDriver: true,
-    }).start(() => {
-      router.replace("/intention");
-    });
+  // Pre-load intention audio early
+  useEffect(() => {
+    intentionAudio
+      .init()
+      .catch((err) => console.warn("Audio init failed:", err));
+  }, []);
+
+  const handlePlaybackStatusUpdate = async (status: AVPlaybackStatus) => {
+    if (!status.isLoaded) {
+      if (status.error) {
+        console.error("Video playback error:", status.error);
+      }
+      return;
+    }
+
+    const duration = status.durationMillis ?? 0;
+    const position = status.positionMillis ?? 0;
+
+    // Start intention audio 2 seconds before end
+    if (
+      duration > 0 &&
+      position >= duration - 2000 &&
+      !hasStartedAudio.current
+    ) {
+      hasStartedAudio.current = true;
+      console.log("Starting intention wheel audio (-2s)");
+
+      await intentionAudio.init();
+      intentionAudio.fadeIn(1800, 0.5);
+    }
+
+    // Video finished → navigate
+    if (status.didJustFinish && !hasNavigated.current) {
+      hasNavigated.current = true;
+      console.log("Video finished → navigating to /intention");
+
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 600,
+        useNativeDriver: true,
+      }).start(() => {
+        router.replace("/intention");
+      });
+    }
   };
 
   return (
-    <View style={styles.container}>
-      <SafeAreaView style={styles.safeArea} edges={[]}>
-        <Animated.View
-          style={[
-            styles.videoContainer,
-            {
-              opacity: fadeAnim,
-            },
-          ]}
-        >
-          <Video
-            ref={videoRef}
-            source={require("@/assets/videos/MOONRISE-open-animation-risen-main.mp4")}
-            style={styles.video}
-            resizeMode={ResizeMode.COVER}
-            shouldPlay
-            isLooping={false}
-            volume={1.0}
-            onPlaybackStatusUpdate={(status) => {
-              if (status.isLoaded) {
-                // Log video progress
-                if (status.positionMillis && status.durationMillis) {
-                  const progress = Math.floor(
-                    (status.positionMillis / status.durationMillis) * 100
-                  );
-                  if (progress % 20 === 0) {
-                    console.log(`Video playing: ${progress}%`);
-                  }
-                }
-
-                if (status.didJustFinish) {
-                  console.log("Video playback finished");
-                  handleVideoEnd();
-                }
-              } else if ("error" in status) {
-                console.error("Video error:", status.error);
-                setVideoStatus("error");
-              }
-            }}
-            onLoad={() => {
-              console.log("Video loaded successfully");
-              setVideoStatus("playing");
-            }}
-            onError={(error) => {
-              console.error("Video load error:", error);
-              setVideoStatus("error");
-            }}
-          />
-        </Animated.View>
-      </SafeAreaView>
-    </View>
+    <SafeAreaView style={styles.container}>
+      <Animated.View style={[styles.videoWrapper, { opacity: fadeAnim }]}>
+        <Video
+          ref={videoRef}
+          source={require("../assets/videos/MOONRISE-open-animation-risen-main.mp4")}
+          style={StyleSheet.absoluteFillObject}
+          resizeMode={ResizeMode.COVER}
+          isLooping={false}
+          shouldPlay={true}
+          onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
+          // Ensure video actually plays (some devices need this)
+          onLoad={() => videoRef.current?.playAsync().catch(() => {})}
+        />
+      </Animated.View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0C0C0C",
+    backgroundColor: "#000",
   },
-  safeArea: {
-    flex: 1,
-  },
-  videoContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#0C0C0C",
-  },
-  video: {
-    width: "100%",
-    height: "100%",
-  },
-  debugOverlay: {
-    position: "absolute",
-    top: 50,
-    left: 20,
-    backgroundColor: "rgba(0,0,0,0.7)",
-    padding: 10,
-    borderRadius: 5,
-  },
-  debugText: {
-    color: "#FFFFFF",
-    fontSize: 14,
+  videoWrapper: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "#000",
   },
 });

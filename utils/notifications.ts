@@ -15,33 +15,33 @@ Notifications.setNotificationHandler({
 // Your 7 rotating messages — edit these however you want!
 const DAILY_INTENTION_MESSAGES = [
   {
-    title: "Moonrise Experience",
-    body: "New week, new energy. What will you create today?",
-  },
+    title: "Moonrise Meditation",
+    body: "Tomorrow is a new journey. Tonight, just be. Check in with your intention and find yourself.",
+  }, // Sunday
   {
-    title: "Moonrise Experience",
-    body: "Trust the rhythm of your breath and your day.",
-  },
+    title: "Moonrise Meditation",
+    body: "New week, new energy. Check in with your intention to set the tone for the week.",
+  }, // Monday
   {
-    title: "Moonrise Experience",
-    body: "You are exactly where you need to be. Keep going.",
-  },
+    title: "Moonrise Meditation",
+    body: "Trust the rhythm of your breath and your journey. Check in with your intention today!",
+  }, // Tuesday
   {
-    title: "Moonrise Experience",
-    body: "One day closer to your dreams. Feel that?",
-  },
+    title: "Moonrise Meditation",
+    body: "You are exactly where you’re supposed to be. Take a moment with yourself and check in with your intention!",
+  }, // Wednesday
   {
-    title: "Moonrise Experience",
-    body: "Let go of what no longer serves you tonight.",
-  },
+    title: "Moonrise Meditation",
+    body: "Immerse yourself in gratitude today. Check in with your intention and welcome the blessings!",
+  }, // Thursday
   {
-    title: "Moonrise Experience",
-    body: "Rest deeply. You’ve earned this peace.",
-  },
+    title: "Moonrise Meditation",
+    body: "Let go of what no longer serves you. Check in with your intention and grow stronger!",
+  }, // Friday
   {
-    title: "Moonrise Experience",
-    body: "Tomorrow is new. Tonight, just be.",
-  },
+    title: "Moonrise Meditation",
+    body: "Rest deeply. You’ve earned this peace. Check in with your intention and ground yourself",
+  }, // Saturday
 ] as const; // Makes it readonly + better typing
 
 export type ScheduledReminder = {
@@ -100,7 +100,7 @@ export async function scheduleRotatingDailyReminders(): Promise<
     const trigger: Notifications.WeeklyTriggerInput = {
       type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
       weekday,
-      hour: 23, // 11:00 PM CHANGE BACK TO 7:00 PM AFTER
+      hour: 13, // 1:00 PM CHANGE BACK TO 7:00 PM AFTER
       minute: 0,
     };
 
@@ -114,7 +114,7 @@ export async function scheduleRotatingDailyReminders(): Promise<
       `Scheduled: ${message.title} → Every ${getDayName(weekday)} at 7:00 PM`
     );
     results.push({
-      config: { hour: 19, minute: 0, title: message.title, body: message.body },
+      config: { hour: 13, minute: 0, title: message.title, body: message.body },
       ids: [id], // Only one ID per day now
     });
   }
