@@ -333,8 +333,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   confirmButton: {
-    backgroundColor: "#A0B5A8",
-    borderColor: "#A0B5A8",
+    backgroundColor: "#E6D2B5",
+    borderColor: "#E6D2B5",
   },
   confirmButtonText: {
     fontSize: 17,

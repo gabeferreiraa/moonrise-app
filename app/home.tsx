@@ -27,6 +27,10 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import MenuPage from "./menu";
+import {
+  requestNotificationPermissions,
+  scheduleRotatingDailyReminders,
+} from "@/utils/notifications";
 
 type Version = "guided" | "birth" | "life" | "death" | "full";
 
@@ -246,6 +250,21 @@ function HomeInner() {
   }, []);
 
   const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    const setupNotifications = async () => {
+      const status = await requestNotificationPermissions();
+
+      if (status === "granted") {
+        console.log("Scheduling 7 rotating daily reminders at 7 PM...");
+        await scheduleRotatingDailyReminders();
+      } else {
+        console.log("Notifications denied");
+      }
+    };
+
+    setupNotifications();
+  }, []);
 
   useEffect(() => {
     kickIdle();

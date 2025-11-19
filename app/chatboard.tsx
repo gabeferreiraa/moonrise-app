@@ -629,7 +629,7 @@ export default function CombinedChatBoardScreen() {
 
           {chatroomLoading ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#6B4FA0" />
+              <ActivityIndicator size="large" color="#E6D2B5" />
             </View>
           ) : (
             <GiftedChat
@@ -647,9 +647,8 @@ export default function CombinedChatBoardScreen() {
               renderUsernameOnMessage
               maxInputLength={500}
               textInputProps={{
-                returnKeyType: "send",
-                blurOnSubmit: false,
-                enablesReturnKeyAutomatically: true,
+                style: [styles.chatInputText], // put it in your StyleSheet
+                placeholderTextColor: "#8E8E93",
               }}
               messagesContainerStyle={styles.messagesContainer}
               minInputToolbarHeight={44}
@@ -735,6 +734,13 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(222, 196, 161, 0.1)",
     justifyContent: "center",
     alignItems: "center",
+  },
+  chatInputText: {
+    color: "#F4F2ED",
+    flex: 1,
+    fontSize: 16,
+    paddingTop: 11,
+    paddingBottom: 11,
   },
   syncButtonText: {
     fontSize: 24,
@@ -902,7 +908,7 @@ const styles = StyleSheet.create({
   messageActions: {
     flexDirection: "row",
     justifyContent: "flex-end",
-    paddingHorizontal: 10,
+    paddingRight: 60,
     paddingTop: 5,
     paddingBottom: 5,
     gap: 12,
