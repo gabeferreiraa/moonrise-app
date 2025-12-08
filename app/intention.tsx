@@ -110,12 +110,12 @@ export default function IntentionScreen() {
     setIsTransitioning(true);
 
     // Fade out the looping wheel
-    await intentionAudio.fadeOut(2500);
+    await intentionAudio.fadeOut(1250);
 
     // Fade out screen and navigate
     Animated.timing(screenFadeAnim, {
       toValue: 0,
-      duration: 800,
+      duration: 400,
       useNativeDriver: true,
     }).start(() => {
       router.replace({
