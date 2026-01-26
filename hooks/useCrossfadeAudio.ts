@@ -27,6 +27,9 @@ export default function useCrossfadeAudio(
   const [currentlyPlaying, setCurrentlyPlaying] = useState<Version | null>(
     null
   );
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [hasFinished, setHasFinished] = useState(false);
+  const onEndCallbackRef = useRef<(() => void) | null>(null);
 
   const tracksRef = useRef<Map<Version, TrackState>>(new Map());
   const isInitializedRef = useRef(false);
@@ -61,6 +64,27 @@ export default function useCrossfadeAudio(
       }
     },
     [currentlyPlaying]
+  );
+
+  // Setup playback completion listener
+  const setupPlaybackListener = useCallback(
+    (sound: Audio.Sound, version: Version) => {
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded) {
+          setIsPlaying(status.isPlaying);
+
+          // Check if audio has finished playing
+          if (status.didJustFinish && !loop) {
+            console.log(`Audio ${version} has finished playing`);
+            setHasFinished(true);
+            if (onEndCallbackRef.current) {
+              onEndCallbackRef.current();
+            }
+          }
+        }
+      });
+    },
+    [loop]
   );
 
   // Initialize audio and load all tracks
@@ -115,8 +139,9 @@ export default function useCrossfadeAudio(
           await initialTrack.sound.setVolumeAsync(masterVolumeRef.current);
           await initialTrack.sound.playAsync();
           initialTrack.hasBeenPlayed = true;
-          setCurrentlyPlaying(initial);
+          setupPlaybackListener(initialTrack.sound, initial);
 
+          setCurrentlyPlaying(initial);
           startPositionTracking(initial);
         }
 
@@ -142,7 +167,7 @@ export default function useCrossfadeAudio(
         sound.unloadAsync().catch(() => {});
       });
     };
-  }, [urls, initial, loop, autoStart]);
+  }, [urls, initial, loop, autoStart, setupPlaybackListener]);
 
   // Track position of current playing track
   const startPositionTracking = useCallback((currentVersion: Version) => {
@@ -233,6 +258,7 @@ export default function useCrossfadeAudio(
 
           setCurrentlyPlaying(newVersion);
           startPositionTracking(newVersion);
+          setupPlaybackListener(newTrack.sound, newVersion);
           setVersion(newVersion);
           isTransitioningRef.current = false;
 
@@ -340,6 +366,7 @@ export default function useCrossfadeAudio(
 
             setVersion(newVersion);
             setCurrentlyPlaying(newVersion);
+            setupPlaybackListener(newTrack.sound, newVersion);
             isTransitioningRef.current = false;
 
             console.log("Transition complete!");
@@ -350,13 +377,20 @@ export default function useCrossfadeAudio(
         isTransitioningRef.current = false;
       }
     },
-    [version, currentlyPlaying, isReady, fadeMs, startPositionTracking]
+    [version, currentlyPlaying, isReady, fadeMs, startPositionTracking, setupPlaybackListener]
   );
+
+  const setOnEnd = useCallback((callback: () => void) => {
+    onEndCallbackRef.current = callback;
+  }, []);
 
   return {
     version,
     setVersion: changeVersion,
     isReady,
     setInitialVolume,
+    setOnEnd,
+    hasFinished,
+    isPlaying,
   };
 }

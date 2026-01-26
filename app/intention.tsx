@@ -82,12 +82,22 @@ export default function IntentionScreen() {
   const router = useRouter();
 
   useEffect(() => {
-    Animated.timing(screenFadeAnim, {
-      toValue: 1,
-      duration: 800,
-      useNativeDriver: true,
-    }).start();
-  }, []);
+  // Start and fade in the intention wheel audio
+  const startAudio = async () => {
+    if (!intentionAudio.isLoaded) {
+      await intentionAudio.init();
+    }
+    intentionAudio.fadeIn(2000, 0.5);
+  };
+  
+  startAudio();
+
+  Animated.timing(screenFadeAnim, {
+    toValue: 1,
+    duration: 800,
+    useNativeDriver: true,
+  }).start();
+}, []);
 
   const handleIntentionChange = (value: Intention) => {
     setSelectedIntention(value);

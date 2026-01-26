@@ -19,6 +19,10 @@ import {
   useMoonLocationCtx,
 } from "../hooks/useMoonLocation";
 
+import {
+  requestNotificationPermissions,
+  scheduleRotatingDailyReminders,
+} from "@/utils/notifications";
 import { CormorantGaramond_700Bold } from "@expo-google-fonts/cormorant-garamond";
 import { useFonts } from "expo-font";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -27,10 +31,6 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import MenuPage from "./menu";
-import {
-  requestNotificationPermissions,
-  scheduleRotatingDailyReminders,
-} from "@/utils/notifications";
 
 type Version = "guided" | "birth" | "life" | "death" | "full";
 
@@ -75,15 +75,15 @@ function HomeInner() {
   const [guidedEnabled, setGuidedEnabled] = useState(true);
   const hasStartedAudioRef = useRef(false);
 
-  const { version, setVersion, isReady, setInitialVolume } = useCrossfadeAudio(
-    AUDIO_URLS,
-    "guided",
-    {
-      fadeMs: 1000,
-      loop: false,
-      autoStart: false,
-    }
-  );
+ const { version, setVersion, isReady, setInitialVolume, hasFinished } = useCrossfadeAudio(
+  AUDIO_URLS,
+  "guided",
+  {
+    fadeMs: 1000,
+    loop: false,
+    autoStart: false,
+  }
+);
   const screenOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -185,6 +185,22 @@ function HomeInner() {
 
     return () => clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+  if (hasFinished) {
+    console.log("Audio finished - returning to intention screen");
+    
+    // Fade out screen
+    Animated.timing(screenOpacity, {
+      toValue: 0,
+      duration: 400,
+      useNativeDriver: true,
+    }).start(() => {
+      // Navigate back to intention screen
+      router.replace("/intention");
+    });
+  }
+}, [hasFinished, router, screenOpacity]);
 
   const getSelectedModes = () => {
     if (version === "birth" || version === "life" || version === "death") {
