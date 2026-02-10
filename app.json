@@ -17,7 +17,8 @@
         "NSUserNotificationsUsageDescription": "This app uses notifications to remind you to set your daily intention.",
         "ITSAppUsesNonExemptEncryption": false,
         "UIBackgroundModes": ["audio"]
-      }
+      },
+      // "supportsTablet": false
     },
 
     "android": {

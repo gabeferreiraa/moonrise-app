@@ -118,7 +118,7 @@ export default function Moon({
   }, [startAnimation]);
 
   const screenH = Dimensions.get("window").height;
-  const startY = screenH * 0.65;
+  const startY = screenH * 0.70;
   const endY = endYOffset;
 
   // If it's a new moon (no image), return a transparent view so background shows through

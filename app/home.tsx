@@ -5,20 +5,22 @@ import { MotiView } from "moti";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
-  Dimensions,
   ImageBackground,
   Platform,
   StyleSheet,
   UIManager,
-  View,
+  useWindowDimensions,
+  View
 } from "react-native";
 import PagerView from "react-native-pager-view";
+import { CompletionModal } from "../components/CompletionModal";
 import { SubscribeModal } from "../components/SubscribeModal";
 import {
   MoonLocationProvider,
   useMoonLocationCtx,
 } from "../hooks/useMoonLocation";
 
+import MenuPage from "@/app/menu";
 import {
   requestNotificationPermissions,
   scheduleRotatingDailyReminders,
@@ -30,7 +32,6 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
-import MenuPage from "./menu";
 
 type Version = "guided" | "birth" | "life" | "death" | "full";
 
@@ -60,6 +61,7 @@ function HomeInner() {
   const IDLE_MS = 8000;
   const [hudVisible, setHudVisible] = useState(false);
   const [subscribeOpen, setSubscribeOpen] = useState(false);
+  const [completionModalOpen, setCompletionModalOpen] = useState(false);
   const [isFirstLaunch, setIsFirstLaunch] = useState(false);
   const [currentPage, setCurrentPage] = useState(0);
   const [showPageIndicator, setShowPageIndicator] = useState(true);
@@ -188,19 +190,10 @@ function HomeInner() {
 
   useEffect(() => {
   if (hasFinished) {
-    console.log("Audio finished - returning to intention screen");
-    
-    // Fade out screen
-    Animated.timing(screenOpacity, {
-      toValue: 0,
-      duration: 400,
-      useNativeDriver: true,
-    }).start(() => {
-      // Navigate back to intention screen
-      router.replace("/intention");
-    });
+    console.log("Audio finished - showing completion modal");
+    setCompletionModalOpen(true);
   }
-}, [hasFinished, router, screenOpacity]);
+}, [hasFinished]);
 
   const getSelectedModes = () => {
     if (version === "birth" || version === "life" || version === "death") {
@@ -215,6 +208,30 @@ function HomeInner() {
   };
 
   const selectedModes = getSelectedModes();
+
+  const handleStopAndChooseNew = () => {
+    console.log("Stop button pressed - showing completion modal");
+    setCompletionModalOpen(true);
+    kickIdle();
+  };
+
+  const handleCompletionBack = () => {
+    setCompletionModalOpen(false);
+  };
+
+  const handleCompletionChooseNew = () => {
+    setCompletionModalOpen(false);
+    
+    // Fade out screen
+    Animated.timing(screenOpacity, {
+      toValue: 0,
+      duration: 400,
+      useNativeDriver: true,
+    }).start(() => {
+      // Navigate back to intention screen
+      router.replace("/intention");
+    });
+  };
 
   const handleModePress = (title?: string, link?: any) => {
     if (!title) return;
@@ -290,16 +307,18 @@ function HomeInner() {
     kickIdle();
   };
 
-  const MOON_SIZE = 260;
-  const DESIRED_FROM_TOP = 220;
-  const maxTop = Math.max(
-    0,
-    Dimensions.get("window").height - MOON_SIZE - insets.bottom - 16
-  );
-  const moonOffset = Math.min(
-    maxTop,
-    Math.max(0, DESIRED_FROM_TOP - insets.top)
-  );
+const { height } = useWindowDimensions();
+
+const MOON_SIZE = 260;
+
+// Put the moon around ~20% down the screen on any device,
+// but clamp so it never starts too low or too high.
+const desiredTop = Math.round(height * 0.14); // tweak 0.16–0.22 to taste
+
+const minTop = Math.max(12, insets.top + 12);         
+const maxTop = Math.max(minTop, height - MOON_SIZE - insets.bottom - 16);
+
+const moonOffset = Math.min(maxTop, Math.max(minTop, desiredTop));
 
   return (
     <Animated.View style={{ flex: 1, opacity: screenOpacity }}>
@@ -362,6 +381,7 @@ function HomeInner() {
               onSubscribeOpen={() => setSubscribeOpen(true)}
               onToggleHemisphere={toggleHemisphere}
               onKickIdle={kickIdle}
+              onStopAndChooseNew={handleStopAndChooseNew}
             />
           </View>
         </PagerView>
@@ -383,6 +403,12 @@ function HomeInner() {
         <SubscribeModal
           visible={subscribeOpen}
           onClose={() => setSubscribeOpen(false)}
+        />
+
+        <CompletionModal
+          visible={completionModalOpen}
+          onBack={handleCompletionBack}
+          onChooseNew={handleCompletionChooseNew}
         />
       </SafeAreaView>
     </Animated.View>

@@ -27,6 +27,7 @@ interface MenuPageProps {
   onSubscribeOpen: () => void;
   onToggleHemisphere: () => void;
   onKickIdle: () => void;
+  onStopAndChooseNew: () => void;
 }
 
 export default function MenuPage({
@@ -35,6 +36,7 @@ export default function MenuPage({
   onSubscribeOpen,
   onToggleHemisphere,
   onKickIdle,
+  onStopAndChooseNew,
 }: MenuPageProps) {
   const [openMenu, setOpenMenu] = useState<
     "Modes" | "Credits" | "Donate" | "Settings" | "About" | null
@@ -171,6 +173,7 @@ export default function MenuPage({
 
           {!openMenu && (
             <>
+              
               <MenuGroup
                 label="About"
                 links={[]}
@@ -202,6 +205,15 @@ export default function MenuPage({
                 onToggle={() => {
                   setOpenMenu(null);
                   router.push("/chatboard");
+                }}
+              />
+              <MenuGroup
+                label="Choose new experience"
+                links={[]}
+                isExpanded={false}
+                onToggle={() => {
+                  setOpenMenu(null);
+                  onStopAndChooseNew();
                 }}
               />
             </>
@@ -245,6 +257,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 40,
+    paddingBottom: 60
   },
   menuContent: {
     zIndex: 2,
