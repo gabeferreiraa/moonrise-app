@@ -4,6 +4,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { MotiView } from "moti";
 import React, { useEffect, useRef, useState } from "react";
 import {
+  Alert,
   Animated,
   ImageBackground,
   Platform,
@@ -27,6 +28,7 @@ import {
 } from "@/utils/notifications";
 import { CormorantGaramond_700Bold } from "@expo-google-fonts/cormorant-garamond";
 import { useFonts } from "expo-font";
+import * as Notifications from "expo-notifications";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   SafeAreaView,
@@ -77,15 +79,15 @@ function HomeInner() {
   const [guidedEnabled, setGuidedEnabled] = useState(true);
   const hasStartedAudioRef = useRef(false);
 
- const { version, setVersion, isReady, setInitialVolume, hasFinished } = useCrossfadeAudio(
-  AUDIO_URLS,
-  "guided",
-  {
-    fadeMs: 1000,
-    loop: false,
-    autoStart: false,
-  }
-);
+  const { version, setVersion, isReady, setInitialVolume, hasFinished } = useCrossfadeAudio(
+    AUDIO_URLS,
+    "guided",
+    {
+      fadeMs: 1000,
+      loop: false,
+      autoStart: false,
+    }
+  );
   const screenOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -189,11 +191,57 @@ function HomeInner() {
   }, []);
 
   useEffect(() => {
-  if (hasFinished) {
-    console.log("Audio finished - showing completion modal");
-    setCompletionModalOpen(true);
-  }
-}, [hasFinished]);
+    if (hasFinished) {
+      console.log("Audio finished - showing completion modal");
+      setCompletionModalOpen(true);
+    }
+  }, [hasFinished]);
+
+  // ────────────────────────────────────────────────
+  // NEW: Delayed notification permission & scheduling (2 minutes after home mounts)
+  // ────────────────────────────────────────────────
+  useEffect(() => {
+    const DELAY_MS = 1 * 60 * 1000; // 120 seconds = 2 minutes
+
+    const timeoutId = setTimeout(async () => {
+      try {
+        console.log("[Notifications] Running delayed setup after 2 minutes...");
+
+        const alreadyAsked = await AsyncStorage.getItem("@moonrise_asked_notifications");
+
+        if (alreadyAsked === "true") {
+          // Already asked before → only re-schedule if granted
+          const { status } = await Notifications.getPermissionsAsync();
+          if (status === "granted") {
+            console.log("[Notifications] Already granted → scheduling reminders");
+            await scheduleRotatingDailyReminders();
+          }
+          return;
+        }
+
+        // First time → ask for permission
+        const status = await requestNotificationPermissions();
+        await AsyncStorage.setItem("@moonrise_asked_notifications", "true");
+
+        if (status === "granted") {
+          console.log("[Notifications] Permission granted → scheduling...");
+          await scheduleRotatingDailyReminders();
+          await AsyncStorage.setItem("@moonrise_notification_scheduled", "true");
+        } else {
+          console.log("[Notifications] Permission denied");
+          Alert.alert(
+            "Daily Reminders",
+            "You can enable notifications later in your device settings to receive gentle daily intention prompts.",
+            [{ text: "OK" }]
+          );
+        }
+      } catch (err) {
+        console.error("[Notifications] Delayed setup error:", err);
+      }
+    }, DELAY_MS);
+
+    return () => clearTimeout(timeoutId);
+  }, []);
 
   const getSelectedModes = () => {
     if (version === "birth" || version === "life" || version === "death") {
@@ -285,21 +333,6 @@ function HomeInner() {
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
-    const setupNotifications = async () => {
-      const status = await requestNotificationPermissions();
-
-      if (status === "granted") {
-        console.log("Scheduling 7 rotating daily reminders at 7 PM...");
-        await scheduleRotatingDailyReminders();
-      } else {
-        console.log("Notifications denied");
-      }
-    };
-
-    setupNotifications();
-  }, []);
-
-  useEffect(() => {
     kickIdle();
   }, []);
 
@@ -307,18 +340,18 @@ function HomeInner() {
     kickIdle();
   };
 
-const { height } = useWindowDimensions();
+  const { height } = useWindowDimensions();
 
-const MOON_SIZE = 260;
+  const MOON_SIZE = 260;
 
-// Put the moon around ~20% down the screen on any device,
-// but clamp so it never starts too low or too high.
-const desiredTop = Math.round(height * 0.14); // tweak 0.16–0.22 to taste
+  // Put the moon around ~20% down the screen on any device,
+  // but clamp so it never starts too low or too high.
+  const desiredTop = Math.round(height * 0.14); // tweak 0.16–0.22 to taste
 
-const minTop = Math.max(12, insets.top + 12);         
-const maxTop = Math.max(minTop, height - MOON_SIZE - insets.bottom - 16);
+  const minTop = Math.max(12, insets.top + 12);         
+  const maxTop = Math.max(minTop, height - MOON_SIZE - insets.bottom - 16);
 
-const moonOffset = Math.min(maxTop, Math.max(minTop, desiredTop));
+  const moonOffset = Math.min(maxTop, Math.max(minTop, desiredTop));
 
   return (
     <Animated.View style={{ flex: 1, opacity: screenOpacity }}>
